@@ -59,7 +59,7 @@ async function runConversation(historique_messages) {
   return completion;
 }
 
-async function main() {
+async function loop(){
   let user;
 
   try {
@@ -136,6 +136,34 @@ async function main() {
       historique_messages.push({ role: "assistant", content: completion.choices[0].message.content });
     }
   }
+}
+
+async function main() {
+  // loop();
+  let user;
+
+  try {
+    user = await login("https://appmob.uphf.fr/backend", process.env.UPHF_USERNAME, process.env.UPHF_PASSWORD);
+    console.log("Utilisateur connecté");
+  } catch (error) {
+    console.error("Impossible d'utiliser l'utilisateur :", error);
+  }
+
+  try { 
+    menu_restaurant = await user.getRestaurantMenu(1165);
+    menu_restaurant.forEach(menu => {
+      console.log(`ID: ${menu.id}, Date: ${menu.date}, Meal: ${JSON.stringify(menu.meal)}`);
+    });
+  } catch (e) { console.log(e) };
+  /*try { console.log(await user.getRestaurantMenu(1175)) } catch (e) { console.log(e) };
+  try { console.log(await user.getRestaurantMenu(1176)) } catch (e) { console.log(e) };
+  try { console.log(await user.getRestaurantMenu(1182)) } catch (e) { console.log(e) };
+  try { console.log(await user.getRestaurantMenu(1183)) } catch (e) { console.log(e) };
+  try { console.log(await user.getRestaurantMenu(1184)) } catch (e) { console.log(e) };
+  try { console.log(await user.getRestaurantMenu(1188)) } catch (e) { console.log(e) };
+  try { console.log(await user.getRestaurantMenu(1265)) } catch (e) { console.log(e) };
+  try { console.log(await user.getRestaurantMenu(1689)) } catch (e) { console.log(e) };
+  try { console.log(await user.getRestaurantMenu(1773)) } catch (e) { console.log(e) };*/
 }
 
 
