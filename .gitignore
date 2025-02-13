@@ -1,4 +1,5 @@
 .env
 /node_modules
 .DS_Store
+openai-function-calling-example/
 openai-function-calling-example(1)/
