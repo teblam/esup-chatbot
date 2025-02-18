@@ -33,10 +33,13 @@ body {
   background: var(--chat-bg);
   border-radius: var(--border-radius);
   box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
-  height: 90vh;
+  height: calc(100vh - 64px);
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  position: relative;
+  margin-left: 300px;
+  padding: 0 20px;
 }
 
 #messages {
@@ -164,6 +167,7 @@ button:hover {
   #chat-container {
     height: 95vh;
     margin: 0;
+    padding: 0 10px;
   }
   
   .message {
@@ -192,4 +196,202 @@ button:hover {
   .markdown-content {
     font-size: 0.95rem;
   }
+}
+
+.sidebar {
+  position: fixed;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 300px;
+  background: #202123;
+  color: white;
+  padding: 1rem;
+  transition: transform 0.3s ease;
+  z-index: 1000;
+}
+
+.sidebar-hidden {
+  transform: translateX(-260px);
+}
+
+.sidebar-header {
+  padding: 1rem;
+  border-bottom: 1px solid #4a4a4a;
+  margin-bottom: 1rem;
+}
+
+.new-chat-btn {
+  width: 100%;
+  padding: 0.75rem;
+  background-color: #343541;
+  border: 1px solid #565869;
+  color: white;
+  border-radius: 5px;
+  cursor: pointer;
+  margin-bottom: 1rem;
+  transition: background-color 0.2s;
+}
+
+.new-chat-btn:hover {
+  background-color: #40414f;
+}
+
+.conversation-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  overflow-y: auto;
+  max-height: calc(100vh - 180px);
+}
+
+.conversation-item {
+  padding: 0.75rem 1rem;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.conversation-item:hover {
+  background-color: #2A2B32;
+}
+
+.conversation-item.active {
+  background-color: #343541;
+}
+
+/* Styles pour l'authentification */
+#auth-container {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  background-color: var(--background-color);
+}
+
+.auth-box {
+  background: var(--chat-bg);
+  padding: 3rem;
+  border-radius: var(--border-radius);
+  box-shadow: 0 8px 16px -1px rgb(0 0 0 / 0.1);
+  width: 100%;
+  max-width: 600px;
+}
+
+.auth-box h2 {
+  margin-bottom: 3rem;
+  color: var(--text-color);
+  text-align: center;
+  font-size: 2.5rem;
+  font-weight: 600;
+}
+
+.auth-box form {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  padding: 0;
+  border: none;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin: 0;
+}
+
+.form-group label {
+  display: block;
+  color: var(--text-color);
+  font-weight: 500;
+  font-size: 1.1rem;
+}
+
+.form-group input,
+.form-group select {
+  width: 100%;
+  padding: 1rem;
+  border: 2px solid #e5e7eb;
+  border-radius: var(--border-radius);
+  font-size: 1.1rem;
+  transition: all 0.2s ease;
+  background-color: #f8fafc;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.auth-box button {
+  width: 100%;
+  margin-top: 1rem;
+  padding: 1.25rem;
+  font-size: 1.2rem;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  background-color: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: var(--border-radius);
+  cursor: pointer;
+}
+
+.auth-box button:hover {
+  background-color: var(--secondary-color);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.auth-switch {
+  margin-top: 2rem;
+  text-align: center;
+  font-size: 1.1rem;
+  color: var(--text-color);
+}
+
+.auth-switch a {
+  color: var(--primary-color);
+  text-decoration: none;
+  font-weight: 600;
+  margin-left: 0.5rem;
+  transition: all 0.2s ease;
+}
+
+.auth-switch a:hover {
+  text-decoration: underline;
+  color: var(--secondary-color);
+}
+
+/* Style pour la barre de navigation */
+.nav-bar {
+  background-color: var(--chat-bg);
+  padding: 1rem 2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.nav-bar .user-info {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.nav-bar .username {
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.nav-bar button {
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
 } 

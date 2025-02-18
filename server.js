@@ -1,8 +1,113 @@
 require("dotenv").config();
-
 const express = require('express');
+const session = require('express-session');
 const { authWithCredentials } = require("esup-multi.js");
 const OpenAI = require("openai");
+const storage = require('./utils/storage');
+
+const app = express();
+const port = 3000;
+
+// Configuration des sessions
+app.use(session({
+    secret: process.env.SESSION_SECRET,
+    resave: false,
+    saveUninitialized: true,
+    cookie: { secure: process.env.NODE_ENV === 'production' }
+}));
+
+app.use(express.json());
+app.use(express.static('public'));
+
+// Middleware d'authentification
+const authMiddleware = async (req, res, next) => {
+    if (!req.session.userId) {
+        return res.status(401).json({ error: 'Non authentifié' });
+    }
+    next();
+};
+
+// Routes d'authentification
+app.post('/api/register', async (req, res) => {
+    try {
+        const { username, password, uphfUsername, uphfPassword, preferredLanguage, preferredRestaurant } = req.body;
+        const user = await storage.createUser({
+            username,
+            password,
+            uphfUsername,
+            uphfPassword,
+            preferredLanguage,
+            preferredRestaurant
+        });
+        res.json({ message: 'Utilisateur créé avec succès' });
+    } catch (error) {
+        res.status(400).json({ error: error.message });
+    }
+});
+
+app.post('/api/login', async (req, res) => {
+    try {
+        const { username, password } = req.body;
+        const user = await storage.verifyUser(username, password);
+        if (!user) {
+            return res.status(401).json({ error: 'Identifiants invalides' });
+        }
+        req.session.userId = user.id;
+        delete user.password;
+        res.json(user);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/logout', (req, res) => {
+    req.session.destroy();
+    res.json({ message: 'Déconnecté avec succès' });
+});
+
+app.get('/api/me', async (req, res) => {
+    if (!req.session.userId) {
+        return res.status(401).json({ error: 'Non authentifié' });
+    }
+    try {
+        const user = await storage.getUser(req.session.userId);
+        if (!user) {
+            return res.status(404).json({ error: 'Utilisateur non trouvé' });
+        }
+        res.json(user);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Routes des conversations
+app.post('/api/conversations', authMiddleware, async (req, res) => {
+    try {
+        const conversation = await storage.createConversation(req.session.userId);
+        historique_messages = await initier_conversation(req.session.userId);
+        res.json(conversation);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.get('/api/conversations', authMiddleware, async (req, res) => {
+    try {
+        const conversations = await storage.getConversations(req.session.userId);
+        res.json(conversations);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.get('/api/conversations/:id/messages', authMiddleware, async (req, res) => {
+    try {
+        const messages = await storage.getConversationMessages(req.params.id, req.session.userId);
+        res.json(messages);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
 
 // Création de l'instance OpenAI avec vérification explicite de la clé
 if (!process.env.OPENAI_API_KEY) {
@@ -15,11 +120,6 @@ const openai = new OpenAI({
 
 const date_ajd = new Date().toJSON().slice(0, 10);
 const language = "Français";
-const app = express();
-const port = 3000;
-
-app.use(express.json());
-app.use(express.static('public')); // Pour servir les fichiers statiques
 
 // Création d'une instance unique pour l'utilisateur connecté
 let globalUser;
@@ -33,14 +133,11 @@ async function login(instanceUrl, username, password) {
         console.error("Erreur lors de la connexion :", error);
         throw error;
     }
-  }
-  
+}
 
 // Initialisation au démarrage du serveur
 async function initServer() {
     try {
-        globalUser = await login("https://appmob.uphf.fr/backend", process.env.UPHF_USERNAME, process.env.UPHF_PASSWORD);
-        historique_messages = await initier_conversation();
         console.log("Serveur initialisé avec succès");
     } catch (error) {
         console.error("Erreur d'initialisation:", error);
@@ -48,7 +145,12 @@ async function initServer() {
     }
 }
 
-async function initier_conversation() {
+async function initier_conversation(userId) {
+  // Récupérer les préférences de l'utilisateur
+  const userPreferences = await storage.getUser(userId);
+  const language = userPreferences.preferred_language;
+  const preferredRestaurant = userPreferences.preferred_restaurant;
+
   const historique_messages = [];
   historique_messages.push({
     role: "developer",
@@ -59,6 +161,7 @@ async function initier_conversation() {
     Utilise la fonction 'getActualities' lorsqu'un utilisateur veut obtenir les actualités de l'université.
     Utilise la fonction 'getContacts' lorsqu'un utilisateur veut obtenir le contact d'un membre de l'équipe pédagogique (administration et professeurs).
     Utilise la fonction 'getMenuRU' lorsqu'un utilisateur veut obtenir le menu d'un restaurant universitaire (seul le menu de la semaine en cours est disponible).
+    Si l'utilisateur ne précise pas de restaurant spécifique, utilise son restaurant favori qui est le ${preferredRestaurant}.
     Les IDs des restaurants sont :
     - 1184 : Restaurant Universitaire Ronzier
     - 1165 : Restaurant Universitaire Rambouillet
@@ -76,7 +179,7 @@ async function initier_conversation() {
   return historique_messages;
 }
 
-async function runConversation(historique_messages) {
+async function runConversation(historique_messages, userId) {
   const tools = [
     {
       type: "function",
@@ -142,7 +245,7 @@ async function runConversation(historique_messages) {
   return completion;
 }
 
-async function processMessage(message) {
+async function processMessage(message, userId) {
     try {
         // Ajout du message utilisateur à l'historique
         historique_messages.push({ 
@@ -151,7 +254,7 @@ async function processMessage(message) {
         });
 
         // Obtenir la réponse initiale
-        let completion = await runConversation(historique_messages);
+        let completion = await runConversation(historique_messages, userId);
         
         // Si l'assistant demande d'utiliser des outils
         if (completion.choices[0].message.tool_calls) {
@@ -185,7 +288,9 @@ async function processMessage(message) {
 
                     case "getMenuRU":
                         const menuArgs = JSON.parse(toolCall.function.arguments);
-                        const menu_restaurant = await globalUser.getRestaurantMenu(menuArgs.id);
+                        const userPreferences = await storage.getUser(userId);
+                        const restaurantId = menuArgs.id || userPreferences.preferred_restaurant;
+                        const menu_restaurant = await globalUser.getRestaurantMenu(restaurantId);
                         const menu_restaurant_formate = menu_restaurant
                             .filter(menu => date_ajd < menu.date)
                             .map(menu => `${menu.date}, ${JSON.stringify(menu.meal)}`);
@@ -234,7 +339,7 @@ async function processMessage(message) {
             }
 
             // Obtenir la réponse finale après l'utilisation des outils
-            completion = await runConversation(historique_messages);
+            completion = await runConversation(historique_messages, userId);
         }
 
         // Ajouter la réponse à l'historique
@@ -252,17 +357,47 @@ async function processMessage(message) {
     }
 }
 
-// Initialiser le serveur au démarrage
-initServer();
-
 // Endpoint pour le chat
-app.post('/api/chat', async (req, res) => {
+app.post('/api/chat', authMiddleware, async (req, res) => {
     try {
-        const { message } = req.body;
-        // Utiliser votre logique existante pour traiter le message
-        const response = await processMessage(message);
+        const { message, conversationId } = req.body;
+        const userId = req.session.userId;
+
+        // Vérifier que la conversation appartient à l'utilisateur
+        const conversation = await storage.getConversation(conversationId, userId);
+        if (!conversation) {
+            return res.status(403).json({ error: 'Conversation non autorisée' });
+        }
+
+        // Initialiser l'historique des messages si ce n'est pas déjà fait
+        if (!historique_messages) {
+            historique_messages = await initier_conversation(userId);
+        }
+
+        // Récupérer les identifiants UPHF de l'utilisateur
+        const uphfCredentials = await storage.getUserUPHFCredentials(userId);
+        
+        // Se connecter avec les identifiants de l'utilisateur
+        if (!globalUser || globalUser.username !== uphfCredentials.uphf_username) {
+            globalUser = await login(
+                "https://appmob.uphf.fr/backend",
+                uphfCredentials.uphf_username,
+                uphfCredentials.uphf_password
+            );
+        }
+
+        // Sauvegarder le message de l'utilisateur
+        await storage.addMessage(conversationId, 'user', message);
+
+        // Traiter le message avec OpenAI et obtenir la réponse
+        const response = await processMessage(message, userId);
+
+        // Sauvegarder la réponse du chatbot
+        await storage.addMessage(conversationId, 'assistant', response);
+
         res.json({ response });
     } catch (error) {
+        console.error('Erreur dans /api/chat:', error);
         res.status(500).json({ error: 'Une erreur est survenue' });
     }
 });
@@ -270,6 +405,9 @@ app.post('/api/chat', async (req, res) => {
 app.get('/', (req, res) => {
     res.sendFile(__dirname + '/public/index.html');
 });
+
+// Initialiser le serveur au démarrage
+initServer();
 
 app.listen(port, () => {
     console.log(`Serveur démarré sur http://localhost:${port}`);
