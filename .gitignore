@@ -2,5 +2,6 @@
 /node_modules
 /data
 .DS_Store
+.vs_code
 openai-function-calling-example/
 openai-function-calling-example(1)/
