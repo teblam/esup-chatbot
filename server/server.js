@@ -4,6 +4,7 @@ const session = require('express-session');
 const { authWithCredentials } = require("esup-multi.js");
 const OpenAI = require("openai");
 const storage = require('./utils/storage');
+const path = require('path');
 
 const app = express();
 const port = 3000;
@@ -17,7 +18,7 @@ app.use(session({
 }));
 
 app.use(express.json());
-app.use(express.static('public'));
+app.use(express.static('../public'));
 
 // Middleware d'authentification
 const authMiddleware = async (req, res, next) => {
@@ -403,7 +404,7 @@ app.post('/api/chat', authMiddleware, async (req, res) => {
 });
 
 app.get('/', (req, res) => {
-    res.sendFile(__dirname + '/public/index.html');
+    res.sendFile(path.join(__dirname, '../public/index.html'));
 });
 
 // Initialiser le serveur au démarrage
@@ -411,4 +412,4 @@ initServer();
 
 app.listen(port, () => {
     console.log(`Serveur démarré sur http://localhost:${port}`);
-}); 
+});

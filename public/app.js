@@ -35,7 +35,7 @@ createApp({
     methods: {
         async checkAuth() {
             try {
-                const response = await fetch('/api/me');
+                const response = await fetch('/server/api/me');
                 if (response.ok) {
                     this.user = await response.json();
                 }
@@ -45,7 +45,7 @@ createApp({
         },
         async login() {
             try {
-                const response = await fetch('/api/login', {
+                const response = await fetch('/server/api/login', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -75,7 +75,7 @@ createApp({
         },
         async register() {
             try {
-                const response = await fetch('/api/register', {
+                const response = await fetch('/server/api/register', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -105,7 +105,7 @@ createApp({
         },
         async logout() {
             try {
-                await fetch('/api/logout', { method: 'POST' });
+                await fetch('/server/api/logout', { method: 'POST' });
                 this.user = null;
                 this.conversations = [];
                 this.currentConversation = null;
@@ -116,7 +116,7 @@ createApp({
         },
         async loadConversations() {
             try {
-                const response = await fetch('/api/conversations');
+                const response = await fetch('/server/api/conversations');
                 if (response.ok) {
                     this.conversations = await response.json();
                 }
@@ -126,7 +126,7 @@ createApp({
         },
         async createNewConversation() {
             try {
-                const response = await fetch('/api/conversations', {
+                const response = await fetch('/server/api/conversations', {
                     method: 'POST'
                 });
                 if (response.ok) {
@@ -140,7 +140,7 @@ createApp({
         },
         async selectConversation(conversation) {
             try {
-                const response = await fetch(`/api/conversations/${conversation.id}/messages`);
+                const response = await fetch(`/server/api/conversations/${conversation.id}/messages`);
                 if (response.ok) {
                     this.messages = await response.json();
                     this.currentConversation = conversation;
@@ -173,7 +173,7 @@ createApp({
 
             try {
                 // Envoyer le message au serveur
-                const response = await fetch('/api/chat', {
+                const response = await fetch('/server/api/chat', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -215,4 +215,4 @@ createApp({
             container.scrollTop = container.scrollHeight;
         }
     }
-}).mount('#app'); 
+}).mount('#app');
