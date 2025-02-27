@@ -35,17 +35,22 @@ createApp({
     methods: {
         async checkAuth() {
             try {
-                const response = await fetch('/server/api/me');
+                const response = await fetch('/api/me');
                 if (response.ok) {
                     this.user = await response.json();
                 }
+                // On ne log pas l'erreur 401 car c'est un cas normal
+                // quand l'utilisateur n'est pas connecté
             } catch (error) {
-                console.error('Erreur de vérification de l\'authentification:', error);
+                // On ne log que les erreurs non-401
+                if (!error.response || error.response.status !== 401) {
+                    console.error('Erreur de vérification de l\'authentification:', error);
+                }
             }
         },
         async login() {
             try {
-                const response = await fetch('/server/api/login', {
+                const response = await fetch('/api/login', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -75,7 +80,7 @@ createApp({
         },
         async register() {
             try {
-                const response = await fetch('/server/api/register', {
+                const response = await fetch('/api/register', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -105,7 +110,7 @@ createApp({
         },
         async logout() {
             try {
-                await fetch('/server/api/logout', { method: 'POST' });
+                await fetch('/api/logout', { method: 'POST' });
                 this.user = null;
                 this.conversations = [];
                 this.currentConversation = null;
@@ -116,7 +121,7 @@ createApp({
         },
         async loadConversations() {
             try {
-                const response = await fetch('/server/api/conversations');
+                const response = await fetch('/api/conversations');
                 if (response.ok) {
                     this.conversations = await response.json();
                 }
@@ -126,7 +131,7 @@ createApp({
         },
         async createNewConversation() {
             try {
-                const response = await fetch('/server/api/conversations', {
+                const response = await fetch('/api/conversations', {
                     method: 'POST'
                 });
                 if (response.ok) {
@@ -140,7 +145,7 @@ createApp({
         },
         async selectConversation(conversation) {
             try {
-                const response = await fetch(`/server/api/conversations/${conversation.id}/messages`);
+                const response = await fetch(`/api/conversations/${conversation.id}/messages`);
                 if (response.ok) {
                     this.messages = await response.json();
                     this.currentConversation = conversation;
@@ -173,7 +178,7 @@ createApp({
 
             try {
                 // Envoyer le message au serveur
-                const response = await fetch('/server/api/chat', {
+                const response = await fetch('/api/chat', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -211,8 +216,14 @@ createApp({
             }
         },
         scrollToBottom() {
-            const container = this.$refs.messagesContainer;
-            container.scrollTop = container.scrollHeight;
+            try {
+                const container = this.$refs.messagesContainer;
+                if (container) {
+                    container.scrollTop = container.scrollHeight;
+                }
+            } catch (error) {
+                console.warn('Erreur de scroll:', error);
+            }
         }
     }
 }).mount('#app');

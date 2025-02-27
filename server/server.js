@@ -18,7 +18,16 @@ app.use(session({
 }));
 
 app.use(express.json());
-app.use(express.static('../public'));
+app.use(express.static(path.join(__dirname, '../public'), {
+    setHeaders: (res, filePath) => {
+        if (filePath.endsWith('.js')) {
+            res.set('Content-Type', 'application/javascript');
+        }
+        if (filePath.endsWith('.css')) {
+            res.set('Content-Type', 'text/css');
+        }
+    }
+}));
 
 // Middleware d'authentification
 const authMiddleware = async (req, res, next) => {
