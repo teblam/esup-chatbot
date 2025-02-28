@@ -20,7 +20,7 @@ const Chat = () => {
   const messagesEndRef = useRef(null);
   const { user } = useAuth();
   const toast = useToast();
-  const { activeConversation } = useConversation();
+  const { activeConversation, setActiveConversation } = useConversation();
 
   // Extract all color values
   const borderColor = useColorModeValue('gray.200', 'gray.700');
@@ -77,16 +77,55 @@ const Chat = () => {
     const userMessage = input;
     setInput('');
     
-    // Ajouter immédiatement le message de l'utilisateur
+    // Créer l'objet message utilisateur
     const userMessageObj = {
       role: 'user',
       content: userMessage,
       created_at: new Date().toISOString(),
     };
-    setMessages(prev => [...prev, userMessageObj]);
 
+    // Ajouter le message à la base de données d'abord
     try {
-      const response = await fetch('/api/chat', {
+      const saveMessageResponse = await fetch(`/api/conversations/${activeConversation.id}/messages`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(userMessageObj)
+      });
+
+      if (!saveMessageResponse.ok) {
+        throw new Error('Failed to save user message');
+      }
+
+      // Ajouter le message à l'interface
+      setMessages(prev => [...prev, userMessageObj]);
+
+      // Si c'est le premier message, on met à jour le titre
+      if (messages.length === 0) {
+        const title = userMessage.length > 50 
+          ? userMessage.substring(0, 47) + '...'
+          : userMessage;
+
+        const titleResponse = await fetch(`/api/conversations/${activeConversation.id}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ title })
+        });
+
+        if (titleResponse.ok) {
+          const updatedConversation = await titleResponse.json();
+          setActiveConversation(prev => ({ ...prev, title: updatedConversation.title }));
+          window.dispatchEvent(new CustomEvent('conversationUpdated', { 
+            detail: { id: activeConversation.id, title: updatedConversation.title } 
+          }));
+        }
+      }
+
+      // Obtenir la réponse de l'IA
+      const aiResponse = await fetch('/api/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -97,8 +136,8 @@ const Chat = () => {
         }),
       });
 
-      if (response.ok) {
-        const data = await response.json();
+      if (aiResponse.ok) {
+        const data = await aiResponse.json();
         const assistantMessageObj = {
           role: 'assistant',
           content: data.response,
@@ -106,13 +145,13 @@ const Chat = () => {
         };
         setMessages(prev => [...prev, assistantMessageObj]);
       } else {
-        throw new Error('Failed to send message');
+        throw new Error('Failed to get AI response');
       }
     } catch (error) {
-      console.error('Error sending message:', error);
+      console.error('Error:', error);
       toast({
         title: 'Erreur',
-        description: 'Impossible d\'envoyer le message',
+        description: error.message || 'Une erreur est survenue',
         status: 'error',
         duration: 3000,
         isClosable: true,

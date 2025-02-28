@@ -101,6 +101,26 @@ app.post('/api/conversations', authMiddleware, async (req, res) => {
     }
 });
 
+app.patch('/api/conversations/:id', authMiddleware, async (req, res) => {
+    try {
+        const { title } = req.body;
+        const conversationId = req.params.id;
+        const userId = req.session.userId;
+
+        // Vérifier que la conversation appartient à l'utilisateur
+        const conversation = await storage.getConversation(conversationId, userId);
+        if (!conversation) {
+            return res.status(403).json({ error: 'Conversation non autorisée' });
+        }
+
+        // Mettre à jour le titre
+        await storage.updateConversationTitle(conversationId, title);
+        res.json({ id: conversationId, title });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 app.get('/api/conversations', authMiddleware, async (req, res) => {
     try {
         const conversations = await storage.getConversations(req.session.userId);
@@ -114,6 +134,45 @@ app.get('/api/conversations/:id/messages', authMiddleware, async (req, res) => {
     try {
         const messages = await storage.getConversationMessages(req.params.id, req.session.userId);
         res.json(messages);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.delete('/api/conversations/:id', authMiddleware, async (req, res) => {
+    try {
+        const conversationId = req.params.id;
+        const userId = req.session.userId;
+
+        // Vérifier que la conversation appartient à l'utilisateur
+        const conversation = await storage.getConversation(conversationId, userId);
+        if (!conversation) {
+            return res.status(403).json({ error: 'Conversation non autorisée' });
+        }
+
+        // Supprimer la conversation et ses messages
+        await storage.deleteConversation(conversationId);
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/conversations/:id/messages', authMiddleware, async (req, res) => {
+    try {
+        const conversationId = req.params.id;
+        const userId = req.session.userId;
+        const { role, content, created_at } = req.body;
+
+        // Vérifier que la conversation appartient à l'utilisateur
+        const conversation = await storage.getConversation(conversationId, userId);
+        if (!conversation) {
+            return res.status(403).json({ error: 'Conversation non autorisée' });
+        }
+
+        // Sauvegarder le message
+        const message = await storage.addMessage(conversationId, role, content, created_at);
+        res.json(message);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

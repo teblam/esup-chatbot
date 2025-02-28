@@ -9,16 +9,31 @@ import {
   DrawerCloseButton,
   VStack,
   Text,
+  Input,
+  IconButton,
+  Flex,
   useColorModeValue,
   useToast,
+  AlertDialog,
+  AlertDialogBody,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogContent,
+  AlertDialogOverlay,
 } from '@chakra-ui/react';
-import { AddIcon } from '@chakra-ui/icons';
-import { useState, useEffect } from 'react';
+import { AddIcon, EditIcon, CheckIcon, CloseIcon, DeleteIcon } from '@chakra-ui/icons';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useConversation } from '../contexts/ConversationContext';
 
 const Sidebar = ({ isOpen, onClose }) => {
   const [conversations, setConversations] = useState([]);
+  const [editingId, setEditingId] = useState(null);
+  const [editingTitle, setEditingTitle] = useState('');
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [conversationToDelete, setConversationToDelete] = useState(null);
+  const editInputRef = useRef(null);
+  const cancelDeleteRef = useRef(null);
   const toast = useToast();
   const navigate = useNavigate();
   const { activeConversation, setActiveConversation } = useConversation();
@@ -33,6 +48,27 @@ const Sidebar = ({ isOpen, onClose }) => {
   useEffect(() => {
     fetchConversations();
   }, []);
+
+  // Écouter les mises à jour de conversation
+  useEffect(() => {
+    const handleConversationUpdate = (event) => {
+      const { id, title } = event.detail;
+      setConversations(prev => prev.map(conv =>
+        conv.id === id ? { ...conv, title } : conv
+      ));
+    };
+
+    window.addEventListener('conversationUpdated', handleConversationUpdate);
+    return () => {
+      window.removeEventListener('conversationUpdated', handleConversationUpdate);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (editingId && editInputRef.current) {
+      editInputRef.current.focus();
+    }
+  }, [editingId]);
 
   const fetchConversations = async () => {
     try {
@@ -75,7 +111,8 @@ const Sidebar = ({ isOpen, onClose }) => {
       
       if (response.ok) {
         const newConversation = await response.json();
-        setConversations(prev => [newConversation, ...prev]);
+        // Recharger toutes les conversations pour avoir les bonnes dates
+        await fetchConversations();
         setActiveConversation(newConversation);
         if (window.innerWidth < 768) {
           onClose();
@@ -111,6 +148,104 @@ const Sidebar = ({ isOpen, onClose }) => {
     });
   };
 
+  const startEditing = (conversation, e) => {
+    e.stopPropagation();
+    setEditingId(conversation.id);
+    setEditingTitle(conversation.title || 'Nouvelle conversation');
+  };
+
+  const cancelEditing = (e) => {
+    e?.stopPropagation();
+    setEditingId(null);
+    setEditingTitle('');
+  };
+
+  const handleTitleChange = async (conversationId, e) => {
+    e?.stopPropagation();
+    try {
+      const response = await fetch(`/api/conversations/${conversationId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          title: editingTitle
+        })
+      });
+
+      if (response.ok) {
+        setConversations(prev => prev.map(conv => 
+          conv.id === conversationId 
+            ? { ...conv, title: editingTitle }
+            : conv
+        ));
+        if (activeConversation?.id === conversationId) {
+          setActiveConversation(prev => ({ ...prev, title: editingTitle }));
+        }
+        cancelEditing();
+      } else {
+        throw new Error('Failed to update title');
+      }
+    } catch (error) {
+      toast({
+        title: 'Erreur',
+        description: 'Impossible de modifier le titre',
+        status: 'error',
+        duration: 3000,
+        isClosable: true,
+      });
+    }
+  };
+
+  const handleDelete = async (conversation) => {
+    try {
+      const response = await fetch(`/api/conversations/${conversation.id}`, {
+        method: 'DELETE'
+      });
+
+      if (response.ok) {
+        setConversations(prev => prev.filter(conv => conv.id !== conversation.id));
+        
+        // Si c'était la conversation active, on en sélectionne une autre
+        if (activeConversation?.id === conversation.id) {
+          const remainingConversations = conversations.filter(conv => conv.id !== conversation.id);
+          if (remainingConversations.length > 0) {
+            setActiveConversation(remainingConversations[0]);
+          } else {
+            setActiveConversation(null);
+          }
+        }
+
+        toast({
+          title: 'Succès',
+          description: 'Conversation supprimée',
+          status: 'success',
+          duration: 3000,
+          isClosable: true,
+        });
+      } else {
+        throw new Error('Failed to delete conversation');
+      }
+    } catch (error) {
+      toast({
+        title: 'Erreur',
+        description: 'Impossible de supprimer la conversation',
+        status: 'error',
+        duration: 3000,
+        isClosable: true,
+      });
+    } finally {
+      setIsDeleteDialogOpen(false);
+      setConversationToDelete(null);
+    }
+  };
+
+  const openDeleteDialog = (conversation, e) => {
+    e.stopPropagation();
+    setConversationToDelete(conversation);
+    setIsDeleteDialogOpen(true);
+  };
+
   const sidebarContent = (
     <VStack spacing={4} align="stretch" w="full">
       <Button
@@ -138,20 +273,97 @@ const Sidebar = ({ isOpen, onClose }) => {
           }}
           onClick={() => handleSelectConversation(conversation)}
           transition="all 0.2s"
+          position="relative"
+          role="group"
         >
-          <Text 
-            noOfLines={2} 
-            fontSize="sm" 
-            fontWeight={activeConversation?.id === conversation.id ? "semibold" : "normal"}
-            color={activeConversation?.id === conversation.id ? activeTextColor : undefined}
-          >
-            {conversation.title || 'Nouvelle conversation'}
-          </Text>
-          <Text fontSize="xs" color="gray.500" mt={1}>
-            {formatDate(conversation.created_at)}
-          </Text>
+          {editingId === conversation.id ? (
+            <Flex gap={2}>
+              <Input
+                ref={editInputRef}
+                value={editingTitle}
+                onChange={(e) => setEditingTitle(e.target.value)}
+                size="sm"
+                onClick={(e) => e.stopPropagation()}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleTitleChange(conversation.id, e);
+                  if (e.key === 'Escape') cancelEditing(e);
+                }}
+              />
+              <IconButton
+                icon={<CheckIcon />}
+                size="sm"
+                colorScheme="green"
+                onClick={(e) => handleTitleChange(conversation.id, e)}
+              />
+              <IconButton
+                icon={<CloseIcon />}
+                size="sm"
+                colorScheme="red"
+                onClick={cancelEditing}
+              />
+            </Flex>
+          ) : (
+            <>
+              <Flex justify="space-between" align="center">
+                <Text 
+                  noOfLines={2} 
+                  fontSize="sm" 
+                  fontWeight={activeConversation?.id === conversation.id ? "semibold" : "normal"}
+                  color={activeConversation?.id === conversation.id ? activeTextColor : undefined}
+                  flex="1"
+                >
+                  {conversation.title || 'Nouvelle conversation'}
+                </Text>
+                <Flex opacity={0} _groupHover={{ opacity: 1 }} ml={2} gap={1}>
+                  <IconButton
+                    icon={<EditIcon />}
+                    size="xs"
+                    variant="ghost"
+                    onClick={(e) => startEditing(conversation, e)}
+                  />
+                  <IconButton
+                    icon={<DeleteIcon />}
+                    size="xs"
+                    variant="ghost"
+                    colorScheme="red"
+                    onClick={(e) => openDeleteDialog(conversation, e)}
+                  />
+                </Flex>
+              </Flex>
+              <Text fontSize="xs" color="gray.500" mt={1}>
+                {formatDate(conversation.created_at)}
+              </Text>
+            </>
+          )}
         </Box>
       ))}
+
+      <AlertDialog
+        isOpen={isDeleteDialogOpen}
+        leastDestructiveRef={cancelDeleteRef}
+        onClose={() => setIsDeleteDialogOpen(false)}
+      >
+        <AlertDialogOverlay>
+          <AlertDialogContent>
+            <AlertDialogHeader fontSize="lg" fontWeight="bold">
+              Supprimer la conversation
+            </AlertDialogHeader>
+
+            <AlertDialogBody>
+              Êtes-vous sûr ? Cette action est irréversible.
+            </AlertDialogBody>
+
+            <AlertDialogFooter>
+              <Button ref={cancelDeleteRef} onClick={() => setIsDeleteDialogOpen(false)}>
+                Annuler
+              </Button>
+              <Button colorScheme="red" onClick={() => handleDelete(conversationToDelete)} ml={3}>
+                Supprimer
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialogOverlay>
+      </AlertDialog>
     </VStack>
   );
 
