@@ -82,8 +82,7 @@ const Chat = () => {
     setInput('');
     
     try {
-      // Envoyer le message à l'IA
-      const aiResponse = await fetch('/api/chat', {
+      const response = await fetch('/api/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -94,38 +93,26 @@ const Chat = () => {
         }),
       });
 
-      if (!aiResponse.ok) {
+      if (!response.ok) {
         throw new Error('Failed to get AI response');
       }
 
-      const data = await aiResponse.json();
+      const data = await response.json();
       
-      // Mettre à jour les messages avec la réponse du backend
+      // Mettre à jour les messages
       if (data.messages) {
         setMessages(prev => [...prev, ...data.messages]);
       }
 
-      // Si c'est le premier message, on met à jour le titre
-      if (messages.length === 0) {
-        const title = userMessage.length > 50 
-          ? userMessage.substring(0, 47) + '...'
-          : userMessage;
-
-        const titleResponse = await fetch(`/api/conversations/${activeConversation.id}`, {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ title })
-        });
-
-        if (titleResponse.ok) {
-          const updatedConversation = await titleResponse.json();
-          setActiveConversation(prev => ({ ...prev, title: updatedConversation.title }));
-          window.dispatchEvent(new CustomEvent('conversationUpdated', { 
-            detail: { id: activeConversation.id, title: updatedConversation.title } 
-          }));
-        }
+      // Mettre à jour la conversation si le titre a été modifié
+      if (data.conversation) {
+        setActiveConversation(data.conversation);
+        window.dispatchEvent(new CustomEvent('conversationUpdated', { 
+          detail: { 
+            id: data.conversation.id, 
+            title: data.conversation.title 
+          } 
+        }));
       }
 
       // Refocus input after response

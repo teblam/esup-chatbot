@@ -103,20 +103,18 @@ const Sidebar = ({ isOpen, onClose }) => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          title: 'Nouvelle conversation'
-        })
+        }
       });
       
       if (response.ok) {
         const newConversation = await response.json();
-        // Recharger toutes les conversations pour avoir les bonnes dates
-        await fetchConversations();
+        setConversations(prev => [newConversation, ...prev]);
         setActiveConversation(newConversation);
         if (window.innerWidth < 768) {
           onClose();
         }
+      } else {
+        throw new Error('Failed to create conversation');
       }
     } catch (error) {
       console.error('Error creating conversation:', error);
@@ -174,13 +172,14 @@ const Sidebar = ({ isOpen, onClose }) => {
       });
 
       if (response.ok) {
+        const updatedConversation = await response.json();
         setConversations(prev => prev.map(conv => 
           conv.id === conversationId 
-            ? { ...conv, title: editingTitle }
+            ? { ...conv, title: updatedConversation.title }
             : conv
         ));
         if (activeConversation?.id === conversationId) {
-          setActiveConversation(prev => ({ ...prev, title: editingTitle }));
+          setActiveConversation(prev => ({ ...prev, title: updatedConversation.title }));
         }
         cancelEditing();
       } else {
