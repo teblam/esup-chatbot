@@ -1,7 +1,8 @@
 .env
 /node_modules
-/data
+/server/data
 .DS_Store
 .vs_code
 openai-function-calling-example/
 openai-function-calling-example(1)/
+server/data/database.db

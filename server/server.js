@@ -246,7 +246,7 @@ async function runConversation(historique_messages, userId) {
   ];
 
   const completion = await openai.chat.completions.create({
-    model: "gpt-4",
+    model: "gpt-4o-mini-2024-07-18",
     messages: historique_messages,
     tools,
     tool_choice: "auto"
