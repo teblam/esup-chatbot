@@ -80,6 +80,15 @@ const Chat = () => {
     setIsLoading(true);
     const userMessage = input;
     setInput('');
+
+    // Afficher immédiatement le message de l'utilisateur
+    const tempUserMessage = {
+      id: 'temp-' + Date.now(),
+      role: 'user',
+      content: userMessage,
+      created_at: new Date().toISOString()
+    };
+    setMessages(prev => [...prev, tempUserMessage]);
     
     try {
       const response = await fetch('/api/chat', {
@@ -93,15 +102,22 @@ const Chat = () => {
         }),
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to get AI response');
-      }
-
       const data = await response.json();
       
-      // Mettre à jour les messages
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to get AI response');
+      }
+
+      console.log('Response from API:', data); // Debug log
+      
+      // Remplacer le message temporaire par les messages sauvegardés
       if (data.messages) {
-        setMessages(prev => [...prev, ...data.messages]);
+        setMessages(prev => {
+          // Enlever le message temporaire
+          const withoutTemp = prev.filter(msg => msg.id !== tempUserMessage.id);
+          // Ajouter les messages sauvegardés
+          return [...withoutTemp, ...data.messages];
+        });
       }
 
       // Mettre à jour la conversation si le titre a été modifié
@@ -121,6 +137,8 @@ const Chat = () => {
       }, 100);
 
     } catch (error) {
+      // En cas d'erreur, on retire le message temporaire
+      setMessages(prev => prev.filter(msg => msg.id !== tempUserMessage.id));
       console.error('Error:', error);
       toast({
         title: 'Erreur',

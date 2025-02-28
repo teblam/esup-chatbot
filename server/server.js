@@ -448,6 +448,23 @@ app.post('/api/chat', authMiddleware, async (req, res) => {
         // Sauvegarder le message de l'utilisateur
         const userMessageSaved = await storage.addMessage(conversationId, 'user', message);
 
+        // Initialiser l'historique des messages si ce n'est pas déjà fait
+        if (!historique_messages) {
+            historique_messages = await initier_conversation(userId);
+        }
+
+        // Récupérer les identifiants UPHF de l'utilisateur
+        const uphfCredentials = await storage.getUserUPHFCredentials(userId);
+        
+        // Se connecter avec les identifiants de l'utilisateur
+        if (!globalUser || globalUser.username !== uphfCredentials.uphf_username) {
+            globalUser = await login(
+                "https://appmob.uphf.fr/backend",
+                uphfCredentials.uphf_username,
+                uphfCredentials.uphf_password
+            );
+        }
+
         // Traiter le message avec OpenAI et obtenir la réponse
         const aiResponse = await processMessage(message, userId);
 
