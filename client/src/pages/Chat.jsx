@@ -18,6 +18,7 @@ const Chat = () => {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef(null);
+  const inputRef = useRef(null);
   const { user } = useAuth();
   const toast = useToast();
   const { activeConversation, setActiveConversation } = useConversation();
@@ -36,6 +37,9 @@ const Chat = () => {
   useEffect(() => {
     if (activeConversation) {
       loadMessages(activeConversation.id);
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 100);
     }
   }, [activeConversation]);
 
@@ -144,6 +148,10 @@ const Chat = () => {
           created_at: new Date().toISOString(),
         };
         setMessages(prev => [...prev, assistantMessageObj]);
+        // Refocus input after AI response
+        setTimeout(() => {
+          inputRef.current?.focus();
+        }, 100);
       } else {
         throw new Error('Failed to get AI response');
       }
@@ -210,6 +218,7 @@ const Chat = () => {
         <form onSubmit={handleSubmit}>
           <Flex gap={2} maxW="900px" mx="auto">
             <Input
+              ref={inputRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Tapez votre message..."
