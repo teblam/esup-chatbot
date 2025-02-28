@@ -14,40 +14,39 @@ import {
 } from '@chakra-ui/react';
 import { AddIcon } from '@chakra-ui/icons';
 import { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
+import { useConversation } from '../contexts/ConversationContext';
 
 const Sidebar = ({ isOpen, onClose }) => {
   const [conversations, setConversations] = useState([]);
-  const [selectedConversation, setSelectedConversation] = useState(null);
   const toast = useToast();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const { activeConversation, setActiveConversation } = useConversation();
+
+  // Extract all color values
+  const bgColor = useColorModeValue('white', 'gray.900');
+  const borderColor = useColorModeValue('gray.200', 'gray.700');
+  const activeBg = useColorModeValue('brand.100', 'brand.900');
+  const hoverBg = useColorModeValue('gray.100', 'gray.700');
+  const activeTextColor = useColorModeValue('brand.700', 'brand.200');
 
   useEffect(() => {
     fetchConversations();
-    // Get conversation ID from URL if it exists
-    const conversationId = searchParams.get('conversation');
-    if (conversationId) {
-      setSelectedConversation(conversationId);
-    }
-  }, [searchParams]);
+  }, []);
 
   const fetchConversations = async () => {
     try {
       const response = await fetch('/api/conversations');
       if (response.ok) {
         const data = await response.json();
-        // Sort conversations by creation date, newest first
         const sortedConversations = data.sort((a, b) => 
           new Date(b.created_at) - new Date(a.created_at)
         );
         setConversations(sortedConversations);
         
-        // If no conversation is selected and we have conversations, select the first one
-        if (!selectedConversation && sortedConversations.length > 0) {
-          const firstConversation = sortedConversations[0];
-          setSelectedConversation(firstConversation.id);
-          navigate(`/?conversation=${firstConversation.id}`);
+        // Si pas de conversation active et qu'on en a, on sélectionne la première
+        if (!activeConversation && sortedConversations.length > 0) {
+          setActiveConversation(sortedConversations[0]);
         }
       }
     } catch (error) {
@@ -77,8 +76,7 @@ const Sidebar = ({ isOpen, onClose }) => {
       if (response.ok) {
         const newConversation = await response.json();
         setConversations(prev => [newConversation, ...prev]);
-        setSelectedConversation(newConversation.id);
-        navigate(`/?conversation=${newConversation.id}`);
+        setActiveConversation(newConversation);
         if (window.innerWidth < 768) {
           onClose();
         }
@@ -95,9 +93,8 @@ const Sidebar = ({ isOpen, onClose }) => {
     }
   };
 
-  const handleSelectConversation = (conversationId) => {
-    setSelectedConversation(conversationId);
-    navigate(`/?conversation=${conversationId}`);
+  const handleSelectConversation = (conversation) => {
+    setActiveConversation(conversation);
     if (window.innerWidth < 768) {
       onClose();
     }
@@ -132,11 +129,22 @@ const Sidebar = ({ isOpen, onClose }) => {
           p={3}
           cursor="pointer"
           borderRadius="md"
-          bg={selectedConversation === conversation.id ? useColorModeValue('brand.50', 'brand.900') : 'transparent'}
-          _hover={{ bg: useColorModeValue('brand.50', 'brand.900') }}
-          onClick={() => handleSelectConversation(conversation.id)}
+          bg={activeConversation?.id === conversation.id ? activeBg : 'transparent'}
+          borderLeft="4px solid"
+          borderLeftColor={activeConversation?.id === conversation.id ? 'brand.500' : 'transparent'}
+          _hover={{ 
+            bg: hoverBg,
+            borderLeftColor: activeConversation?.id === conversation.id ? 'brand.500' : 'brand.200'
+          }}
+          onClick={() => handleSelectConversation(conversation)}
+          transition="all 0.2s"
         >
-          <Text noOfLines={2} fontSize="sm" fontWeight={selectedConversation === conversation.id ? "medium" : "normal"}>
+          <Text 
+            noOfLines={2} 
+            fontSize="sm" 
+            fontWeight={activeConversation?.id === conversation.id ? "semibold" : "normal"}
+            color={activeConversation?.id === conversation.id ? activeTextColor : undefined}
+          >
             {conversation.title || 'Nouvelle conversation'}
           </Text>
           <Text fontSize="xs" color="gray.500" mt={1}>
@@ -152,9 +160,9 @@ const Sidebar = ({ isOpen, onClose }) => {
       <Box
         display={{ base: 'none', md: 'block' }}
         w="300px"
-        bg={useColorModeValue('white', 'gray.900')}
+        bg={bgColor}
         borderRight="1px"
-        borderColor={useColorModeValue('gray.200', 'gray.700')}
+        borderColor={borderColor}
         p={4}
         position="fixed"
         h="calc(100vh - 64px)"

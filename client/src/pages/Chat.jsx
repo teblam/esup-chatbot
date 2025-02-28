@@ -11,81 +11,33 @@ import {
 import { ArrowUpIcon } from '@chakra-ui/icons';
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { useSearchParams } from 'react-router-dom';
+import { useConversation } from '../contexts/ConversationContext';
 
 const Chat = () => {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [currentConversation, setCurrentConversation] = useState(null);
   const messagesEndRef = useRef(null);
   const { user } = useAuth();
   const toast = useToast();
-  const [searchParams] = useSearchParams();
+  const { activeConversation } = useConversation();
+
+  // Extract all color values
+  const borderColor = useColorModeValue('gray.200', 'gray.700');
+  const bgColor = useColorModeValue('white', 'gray.800');
+  const inputBgColor = useColorModeValue('white', 'gray.700');
+
+  // Message bubble colors
+  const userBgColor = useColorModeValue('brand.500', 'brand.200');
+  const botBgColor = useColorModeValue('gray.100', 'gray.700');
+  const userTextColor = useColorModeValue('white', 'gray.800');
+  const botTextColor = useColorModeValue('gray.800', 'white');
 
   useEffect(() => {
-    const conversationId = searchParams.get('conversation');
-    if (conversationId) {
-      loadMessages(conversationId);
-    } else {
-      initChat();
+    if (activeConversation) {
+      loadMessages(activeConversation.id);
     }
-  }, [searchParams]);
-
-  const initChat = async () => {
-    try {
-      const response = await fetch('/api/conversations');
-      if (response.ok) {
-        const conversations = await response.json();
-        if (conversations.length === 0) {
-          const newConv = await createNewConversation();
-          if (newConv) {
-            await loadMessages(newConv.id);
-          }
-        } else {
-          await loadMessages(conversations[0].id);
-        }
-      }
-    } catch (error) {
-      console.error('Error initializing chat:', error);
-      toast({
-        title: 'Erreur',
-        description: 'Impossible d\'initialiser le chat',
-        status: 'error',
-        duration: 3000,
-        isClosable: true,
-      });
-    }
-  };
-
-  const createNewConversation = async () => {
-    try {
-      const response = await fetch('/api/conversations', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          title: 'Nouvelle conversation'
-        })
-      });
-      if (response.ok) {
-        const newConversation = await response.json();
-        setCurrentConversation(newConversation);
-        return newConversation;
-      }
-    } catch (error) {
-      console.error('Error creating conversation:', error);
-      toast({
-        title: 'Erreur',
-        description: 'Impossible de créer une nouvelle conversation',
-        status: 'error',
-        duration: 3000,
-        isClosable: true,
-      });
-    }
-    return null;
-  };
+  }, [activeConversation]);
 
   const loadMessages = async (conversationId) => {
     try {
@@ -94,7 +46,6 @@ const Chat = () => {
       if (response.ok) {
         const data = await response.json();
         setMessages(data);
-        setCurrentConversation({ id: conversationId });
       } else {
         throw new Error('Failed to load messages');
       }
@@ -120,7 +71,7 @@ const Chat = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!input.trim() || isLoading || !currentConversation) return;
+    if (!input.trim() || isLoading || !activeConversation) return;
 
     setIsLoading(true);
     const userMessage = input;
@@ -142,7 +93,7 @@ const Chat = () => {
         },
         body: JSON.stringify({
           message: userMessage,
-          conversationId: currentConversation.id,
+          conversationId: activeConversation.id,
         }),
       });
 
@@ -173,21 +124,13 @@ const Chat = () => {
 
   const MessageBubble = ({ message }) => {
     const isUser = message.role === 'user';
-    const bgColor = useColorModeValue(
-      isUser ? 'brand.500' : 'gray.100',
-      isUser ? 'brand.200' : 'gray.700'
-    );
-    const textColor = useColorModeValue(
-      isUser ? 'white' : 'gray.800',
-      isUser ? 'gray.800' : 'white'
-    );
-
+    
     return (
       <Box
         maxW="80%"
         alignSelf={isUser ? 'flex-end' : 'flex-start'}
-        bg={bgColor}
-        color={textColor}
+        bg={isUser ? userBgColor : botBgColor}
+        color={isUser ? userTextColor : botTextColor}
         px={4}
         py={2}
         borderRadius="lg"
@@ -198,36 +141,32 @@ const Chat = () => {
     );
   };
 
-  if (!currentConversation) {
+  if (!activeConversation) {
     return <Box p={4}>Chargement...</Box>;
   }
 
   return (
-    <Box h="100%" display="flex" flexDirection="column">
-      <VStack
-        flex="1"
-        overflowY="auto"
-        spacing={4}
-        p={4}
-        pb="80px"
-        alignItems="stretch"
-      >
-        {messages.map((message, index) => (
-          <MessageBubble key={index} message={message} />
-        ))}
-        <div ref={messagesEndRef} />
-      </VStack>
+    <Flex direction="column" h="calc(100vh - 64px)" position="relative">
+      <Box flex="1" overflowY="auto" position="relative">
+        <VStack
+          spacing={4}
+          p={4}
+          pb="20px"
+          alignItems="stretch"
+        >
+          {messages.map((message, index) => (
+            <MessageBubble key={index} message={message} />
+          ))}
+          <div ref={messagesEndRef} />
+        </VStack>
+      </Box>
 
       <Box 
         p={4} 
         borderTop="1px" 
-        borderColor={useColorModeValue('gray.200', 'gray.700')}
-        bg={useColorModeValue('white', 'gray.800')}
-        position="fixed"
-        bottom={0}
-        left={{ base: 0, md: '300px' }}
-        right={0}
-        zIndex={2}
+        borderColor={borderColor}
+        bg={bgColor}
+        width="100%"
       >
         <form onSubmit={handleSubmit}>
           <Flex gap={2} maxW="900px" mx="auto">
@@ -236,7 +175,7 @@ const Chat = () => {
               onChange={(e) => setInput(e.target.value)}
               placeholder="Tapez votre message..."
               disabled={isLoading}
-              bg={useColorModeValue('white', 'gray.700')}
+              bg={inputBgColor}
             />
             <IconButton
               type="submit"
@@ -248,7 +187,7 @@ const Chat = () => {
           </Flex>
         </form>
       </Box>
-    </Box>
+    </Flex>
   );
 };
 

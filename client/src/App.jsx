@@ -1,23 +1,18 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
-
-// Pages
-import Login from './pages/Login';
-import Register from './pages/Register';
-import Chat from './pages/Chat';
-import Layout from './components/Layout';
+import { ChakraProvider } from '@chakra-ui/react';
+import { AuthProvider } from './contexts/AuthContext';
+import { ConversationProvider } from './contexts/ConversationContext';
+import theme from './theme';
+import AppRoutes from './AppRoutes';
 
 function App() {
   return (
-    <Routes>
-      <Route path="/login" element={<Login />} />
-      <Route path="/register" element={<Register />} />
-      <Route path="/" element={
-        <Layout>
-          <Chat />
-        </Layout>
-      } />
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+    <ChakraProvider theme={theme}>
+      <AuthProvider>
+        <ConversationProvider>
+          <AppRoutes />
+        </ConversationProvider>
+      </AuthProvider>
+    </ChakraProvider>
   );
 }
 
