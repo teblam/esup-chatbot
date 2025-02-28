@@ -81,29 +81,29 @@ const Chat = () => {
     const userMessage = input;
     setInput('');
     
-    // Créer l'objet message utilisateur
-    const userMessageObj = {
-      role: 'user',
-      content: userMessage,
-      created_at: new Date().toISOString(),
-    };
-
-    // Ajouter le message à la base de données d'abord
     try {
-      const saveMessageResponse = await fetch(`/api/conversations/${activeConversation.id}/messages`, {
+      // Envoyer le message à l'IA
+      const aiResponse = await fetch('/api/chat', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
         },
-        body: JSON.stringify(userMessageObj)
+        body: JSON.stringify({
+          message: userMessage,
+          conversationId: activeConversation.id,
+        }),
       });
 
-      if (!saveMessageResponse.ok) {
-        throw new Error('Failed to save user message');
+      if (!aiResponse.ok) {
+        throw new Error('Failed to get AI response');
       }
 
-      // Ajouter le message à l'interface
-      setMessages(prev => [...prev, userMessageObj]);
+      const data = await aiResponse.json();
+      
+      // Mettre à jour les messages avec la réponse du backend
+      if (data.messages) {
+        setMessages(prev => [...prev, ...data.messages]);
+      }
 
       // Si c'est le premier message, on met à jour le titre
       if (messages.length === 0) {
@@ -128,33 +128,11 @@ const Chat = () => {
         }
       }
 
-      // Obtenir la réponse de l'IA
-      const aiResponse = await fetch('/api/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          message: userMessage,
-          conversationId: activeConversation.id,
-        }),
-      });
+      // Refocus input after response
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 100);
 
-      if (aiResponse.ok) {
-        const data = await aiResponse.json();
-        const assistantMessageObj = {
-          role: 'assistant',
-          content: data.response,
-          created_at: new Date().toISOString(),
-        };
-        setMessages(prev => [...prev, assistantMessageObj]);
-        // Refocus input after AI response
-        setTimeout(() => {
-          inputRef.current?.focus();
-        }, 100);
-      } else {
-        throw new Error('Failed to get AI response');
-      }
     } catch (error) {
       console.error('Error:', error);
       toast({
