@@ -313,7 +313,16 @@ const Sidebar = ({ isOpen, onClose }) => {
                 >
                   {conversation.title || 'Nouvelle conversation'}
                 </Text>
-                <Flex opacity={0} _groupHover={{ opacity: 1 }} ml={2} gap={1}>
+                <Flex 
+                  display={{ 
+                    base: activeConversation?.id === conversation.id ? 'flex' : 'none',
+                    md: 'flex'
+                  }}
+                  opacity={{ base: 1, md: 0 }}
+                  _groupHover={{ opacity: 1 }}
+                  ml={2} 
+                  gap={1}
+                >
                   <IconButton
                     icon={<EditIcon />}
                     size="xs"
