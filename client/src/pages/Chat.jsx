@@ -203,12 +203,13 @@ const Chat = () => {
   }
 
   return (
-    <Box h="calc(100vh - 80px)" display="flex" flexDirection="column">
+    <Box h="100%" display="flex" flexDirection="column">
       <VStack
         flex="1"
         overflowY="auto"
         spacing={4}
         p={4}
+        pb="80px"
         alignItems="stretch"
       >
         {messages.map((message, index) => (
@@ -217,20 +218,32 @@ const Chat = () => {
         <div ref={messagesEndRef} />
       </VStack>
 
-      <Box p={4} borderTop="1px" borderColor="gray.200">
+      <Box 
+        p={4} 
+        borderTop="1px" 
+        borderColor={useColorModeValue('gray.200', 'gray.700')}
+        bg={useColorModeValue('white', 'gray.800')}
+        position="fixed"
+        bottom={0}
+        left={{ base: 0, md: '300px' }}
+        right={0}
+        zIndex={2}
+      >
         <form onSubmit={handleSubmit}>
-          <Flex gap={2}>
+          <Flex gap={2} maxW="900px" mx="auto">
             <Input
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Tapez votre message..."
               disabled={isLoading}
+              bg={useColorModeValue('white', 'gray.700')}
             />
             <IconButton
               type="submit"
               icon={<ArrowUpIcon />}
               isLoading={isLoading}
               aria-label="Envoyer"
+              colorScheme="brand"
             />
           </Flex>
         </form>

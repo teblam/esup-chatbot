@@ -9,7 +9,7 @@ const Layout = ({ children }) => {
   const { isOpen, onOpen, onClose } = useDisclosure();
 
   if (loading) {
-    return null; // ou un composant de chargement
+    return null;
   }
 
   if (!user) {
@@ -17,14 +17,18 @@ const Layout = ({ children }) => {
   }
 
   return (
-    <Box minH="100vh" bg="gray.50">
-      <Navbar onOpen={onOpen} />
-      <Flex pt="64px">
+    <Box h="100vh" overflow="hidden">
+      <Box position="fixed" top={0} left={0} right={0} zIndex={1000}>
+        <Navbar onOpen={onOpen} />
+      </Box>
+      <Flex h="100vh" pt="64px">
         <Sidebar isOpen={isOpen} onClose={onClose} />
         <Box
           flex="1"
           ml={{ base: 0, md: '300px' }}
-          p={4}
+          overflowY="auto"
+          h="calc(100vh - 64px)"
+          bg="gray.50"
         >
           {children}
         </Box>
