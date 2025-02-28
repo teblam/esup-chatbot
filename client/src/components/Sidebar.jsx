@@ -14,24 +14,40 @@ import {
 } from '@chakra-ui/react';
 import { AddIcon } from '@chakra-ui/icons';
 import { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
 const Sidebar = ({ isOpen, onClose }) => {
   const [conversations, setConversations] = useState([]);
   const [selectedConversation, setSelectedConversation] = useState(null);
   const toast = useToast();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   useEffect(() => {
     fetchConversations();
-  }, []);
+    // Get conversation ID from URL if it exists
+    const conversationId = searchParams.get('conversation');
+    if (conversationId) {
+      setSelectedConversation(conversationId);
+    }
+  }, [searchParams]);
 
   const fetchConversations = async () => {
     try {
       const response = await fetch('/api/conversations');
       if (response.ok) {
         const data = await response.json();
-        setConversations(data);
-        if (data.length > 0 && !selectedConversation) {
-          setSelectedConversation(data[0].id);
+        // Sort conversations by creation date, newest first
+        const sortedConversations = data.sort((a, b) => 
+          new Date(b.created_at) - new Date(a.created_at)
+        );
+        setConversations(sortedConversations);
+        
+        // If no conversation is selected and we have conversations, select the first one
+        if (!selectedConversation && sortedConversations.length > 0) {
+          const firstConversation = sortedConversations[0];
+          setSelectedConversation(firstConversation.id);
+          navigate(`/?conversation=${firstConversation.id}`);
         }
       }
     } catch (error) {
@@ -50,12 +66,22 @@ const Sidebar = ({ isOpen, onClose }) => {
     try {
       const response = await fetch('/api/conversations', {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          title: 'Nouvelle conversation'
+        })
       });
+      
       if (response.ok) {
         const newConversation = await response.json();
-        setConversations([newConversation, ...conversations]);
+        setConversations(prev => [newConversation, ...prev]);
         setSelectedConversation(newConversation.id);
-        window.location.href = `/?conversation=${newConversation.id}`;
+        navigate(`/?conversation=${newConversation.id}`);
+        if (window.innerWidth < 768) {
+          onClose();
+        }
       }
     } catch (error) {
       console.error('Error creating conversation:', error);
@@ -69,12 +95,23 @@ const Sidebar = ({ isOpen, onClose }) => {
     }
   };
 
-  const handleSelectConversation = async (conversationId) => {
+  const handleSelectConversation = (conversationId) => {
     setSelectedConversation(conversationId);
-    window.location.href = `/?conversation=${conversationId}`;
+    navigate(`/?conversation=${conversationId}`);
     if (window.innerWidth < 768) {
       onClose();
     }
+  };
+
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('fr-FR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
   const sidebarContent = (
@@ -84,6 +121,7 @@ const Sidebar = ({ isOpen, onClose }) => {
         onClick={createNewConversation}
         size="sm"
         w="full"
+        colorScheme="brand"
       >
         Nouvelle conversation
       </Button>
@@ -94,12 +132,15 @@ const Sidebar = ({ isOpen, onClose }) => {
           p={3}
           cursor="pointer"
           borderRadius="md"
-          bg={selectedConversation === conversation.id ? 'brand.50' : 'transparent'}
-          _hover={{ bg: 'brand.50' }}
+          bg={selectedConversation === conversation.id ? useColorModeValue('brand.50', 'brand.900') : 'transparent'}
+          _hover={{ bg: useColorModeValue('brand.50', 'brand.900') }}
           onClick={() => handleSelectConversation(conversation.id)}
         >
-          <Text noOfLines={2} fontSize="sm">
+          <Text noOfLines={2} fontSize="sm" fontWeight={selectedConversation === conversation.id ? "medium" : "normal"}>
             {conversation.title || 'Nouvelle conversation'}
+          </Text>
+          <Text fontSize="xs" color="gray.500" mt={1}>
+            {formatDate(conversation.created_at)}
           </Text>
         </Box>
       ))}
@@ -118,6 +159,7 @@ const Sidebar = ({ isOpen, onClose }) => {
         position="fixed"
         h="calc(100vh - 64px)"
         overflowY="auto"
+        top="64px"
       >
         {sidebarContent}
       </Box>

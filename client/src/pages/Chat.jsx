@@ -11,6 +11,7 @@ import {
 import { ArrowUpIcon } from '@chakra-ui/icons';
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useSearchParams } from 'react-router-dom';
 
 const Chat = () => {
   const [messages, setMessages] = useState([]);
@@ -20,36 +21,40 @@ const Chat = () => {
   const messagesEndRef = useRef(null);
   const { user } = useAuth();
   const toast = useToast();
+  const [searchParams] = useSearchParams();
 
   useEffect(() => {
-    const initChat = async () => {
-      const conversations = await fetchConversations();
-      if (conversations.length === 0) {
-        const newConv = await createNewConversation();
-        if (newConv) {
-          await loadMessages(newConv.id);
-        }
-      } else {
-        await loadMessages(conversations[0].id);
-      }
-    };
-
-    if (user) {
+    const conversationId = searchParams.get('conversation');
+    if (conversationId) {
+      loadMessages(conversationId);
+    } else {
       initChat();
     }
-  }, [user]);
+  }, [searchParams]);
 
-  const fetchConversations = async () => {
+  const initChat = async () => {
     try {
       const response = await fetch('/api/conversations');
       if (response.ok) {
-        const data = await response.json();
-        return data;
+        const conversations = await response.json();
+        if (conversations.length === 0) {
+          const newConv = await createNewConversation();
+          if (newConv) {
+            await loadMessages(newConv.id);
+          }
+        } else {
+          await loadMessages(conversations[0].id);
+        }
       }
-      return [];
     } catch (error) {
-      console.error('Error fetching conversations:', error);
-      return [];
+      console.error('Error initializing chat:', error);
+      toast({
+        title: 'Erreur',
+        description: 'Impossible d\'initialiser le chat',
+        status: 'error',
+        duration: 3000,
+        isClosable: true,
+      });
     }
   };
 
@@ -57,6 +62,12 @@ const Chat = () => {
     try {
       const response = await fetch('/api/conversations', {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          title: 'Nouvelle conversation'
+        })
       });
       if (response.ok) {
         const newConversation = await response.json();
@@ -78,14 +89,24 @@ const Chat = () => {
 
   const loadMessages = async (conversationId) => {
     try {
+      setMessages([]); // Clear messages while loading
       const response = await fetch(`/api/conversations/${conversationId}/messages`);
       if (response.ok) {
         const data = await response.json();
         setMessages(data);
         setCurrentConversation({ id: conversationId });
+      } else {
+        throw new Error('Failed to load messages');
       }
     } catch (error) {
       console.error('Error loading messages:', error);
+      toast({
+        title: 'Erreur',
+        description: 'Impossible de charger les messages',
+        status: 'error',
+        duration: 3000,
+        isClosable: true,
+      });
     }
   };
 
