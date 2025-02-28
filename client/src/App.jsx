@@ -1,23 +1,24 @@
-import { Box } from "@chakra-ui/react"
-import { Route, Routes } from "react-router-dom"
-import Navbar from "./components/Navbar.jsx"
-import HomePage from "./pages/HomePage.jsx"
+import { Routes, Route, Navigate } from 'react-router-dom';
+
+// Pages
+import Login from './pages/Login';
+import Register from './pages/Register';
+import Chat from './pages/Chat';
+import Layout from './components/Layout';
 
 function App() {
-
   return (
-
-    <Box minH={"100vh"}>
-
-      <Navbar />
-
-      <Routes>
-        <Route path="/" element={<HomePage />} />
-      </Routes>
-
-    </Box>
-
-  )
+    <Routes>
+      <Route path="/login" element={<Login />} />
+      <Route path="/register" element={<Register />} />
+      <Route path="/" element={
+        <Layout>
+          <Chat />
+        </Layout>
+      } />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
 }
 
-export default App
+export default App;
