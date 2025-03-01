@@ -156,11 +156,27 @@ const storage = {
 
     async createConversation(userId, title = 'Nouvelle conversation') {
         return new Promise((resolve, reject) => {
-            db.run('INSERT INTO conversations (user_id, title) VALUES (?, ?)', 
-                [userId, title], 
+            const now = new Date().toISOString();
+            db.run(
+                'INSERT INTO conversations (user_id, title, created_at) VALUES (?, ?, ?)', 
+                [userId, title, now], 
                 function(err) {
-                    if (err) reject(err);
-                    resolve({ id: this.lastID, title, user_id: userId, messages: [] });
+                    if (err) {
+                        reject(err);
+                        return;
+                    }
+                    // Récupérer la conversation complète après création
+                    db.get(
+                        'SELECT * FROM conversations WHERE id = ?',
+                        [this.lastID],
+                        (err, conversation) => {
+                            if (err) {
+                                reject(err);
+                                return;
+                            }
+                            resolve(conversation);
+                        }
+                    );
                 }
             );
         });
@@ -193,17 +209,18 @@ const storage = {
         });
     },
 
-    async addMessage(conversationId, role, content) {
+    async addMessage(conversationId, role, content, created_at = new Date().toISOString()) {
         return new Promise((resolve, reject) => {
-            db.run('INSERT INTO messages (conversation_id, role, content) VALUES (?, ?, ?)',
-                [conversationId, role, content], 
+            db.run('INSERT INTO messages (conversation_id, role, content, created_at) VALUES (?, ?, ?, ?)',
+                [conversationId, role, content, created_at], 
                 function(err) {
                     if (err) reject(err);
                     resolve({ 
                         id: this.lastID, 
                         conversation_id: conversationId, 
                         role, 
-                        content 
+                        content,
+                        created_at
                     });
                 }
             );
@@ -219,6 +236,54 @@ const storage = {
                     resolve(conversation);
                 }
             );
+        });
+    },
+
+    async updateConversationTitle(conversationId, title) {
+        return new Promise((resolve, reject) => {
+            db.run('UPDATE conversations SET title = ? WHERE id = ?',
+                [title, conversationId],
+                function(err) {
+                    if (err) reject(err);
+                    resolve({ id: conversationId, title });
+                }
+            );
+        });
+    },
+
+    async deleteConversation(conversationId) {
+        return new Promise((resolve, reject) => {
+            // Commencer une transaction pour s'assurer que tout est supprimé
+            db.serialize(() => {
+                db.run('BEGIN TRANSACTION');
+                
+                // Supprimer d'abord les messages
+                db.run('DELETE FROM messages WHERE conversation_id = ?', [conversationId], (err) => {
+                    if (err) {
+                        db.run('ROLLBACK');
+                        reject(err);
+                        return;
+                    }
+                    
+                    // Puis supprimer la conversation
+                    db.run('DELETE FROM conversations WHERE id = ?', [conversationId], (err) => {
+                        if (err) {
+                            db.run('ROLLBACK');
+                            reject(err);
+                            return;
+                        }
+                        
+                        db.run('COMMIT', (err) => {
+                            if (err) {
+                                db.run('ROLLBACK');
+                                reject(err);
+                                return;
+                            }
+                            resolve();
+                        });
+                    });
+                });
+            });
         });
     }
 };

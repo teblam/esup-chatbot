@@ -101,6 +101,25 @@ app.post('/api/conversations', authMiddleware, async (req, res) => {
     }
 });
 
+app.patch('/api/conversations/:id', authMiddleware, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { title } = req.body;
+        
+        // Vérifier que la conversation appartient à l'utilisateur
+        const conversation = await storage.getConversation(id, req.session.userId);
+        if (!conversation) {
+            return res.status(403).json({ error: 'Conversation non autorisée' });
+        }
+
+        // Mettre à jour le titre
+        const updatedConversation = await storage.updateConversationTitle(id, title);
+        res.json(updatedConversation);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 app.get('/api/conversations', authMiddleware, async (req, res) => {
     try {
         const conversations = await storage.getConversations(req.session.userId);
@@ -114,6 +133,44 @@ app.get('/api/conversations/:id/messages', authMiddleware, async (req, res) => {
     try {
         const messages = await storage.getConversationMessages(req.params.id, req.session.userId);
         res.json(messages);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.delete('/api/conversations/:id', authMiddleware, async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        // Vérifier que la conversation appartient à l'utilisateur
+        const conversation = await storage.getConversation(id, req.session.userId);
+        if (!conversation) {
+            return res.status(403).json({ error: 'Conversation non autorisée' });
+        }
+
+        // Supprimer la conversation et ses messages
+        await storage.deleteConversation(id);
+        res.json({ message: 'Conversation supprimée avec succès' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/conversations/:id/messages', authMiddleware, async (req, res) => {
+    try {
+        const conversationId = req.params.id;
+        const userId = req.session.userId;
+        const { role, content, created_at } = req.body;
+
+        // Vérifier que la conversation appartient à l'utilisateur
+        const conversation = await storage.getConversation(conversationId, userId);
+        if (!conversation) {
+            return res.status(403).json({ error: 'Conversation non autorisée' });
+        }
+
+        // Sauvegarder le message
+        const message = await storage.addMessage(conversationId, role, content, created_at);
+        res.json(message);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -246,7 +303,7 @@ async function runConversation(historique_messages, userId) {
   ];
 
   const completion = await openai.chat.completions.create({
-    model: "gpt-4",
+    model: "gpt-4o-mini-2024-07-18",
     messages: historique_messages,
     tools,
     tool_choice: "auto"
@@ -379,6 +436,18 @@ app.post('/api/chat', authMiddleware, async (req, res) => {
             return res.status(403).json({ error: 'Conversation non autorisée' });
         }
 
+        // Récupérer les messages existants
+        const existingMessages = await storage.getConversationMessages(conversationId, userId);
+
+        // Si c'est le premier message, mettre à jour le titre
+        if (existingMessages.length === 0) {
+            const title = message.length > 50 ? message.substring(0, 47) + '...' : message;
+            await storage.updateConversationTitle(conversationId, title);
+        }
+
+        // Sauvegarder le message de l'utilisateur
+        const userMessageSaved = await storage.addMessage(conversationId, 'user', message);
+
         // Initialiser l'historique des messages si ce n'est pas déjà fait
         if (!historique_messages) {
             historique_messages = await initier_conversation(userId);
@@ -396,16 +465,22 @@ app.post('/api/chat', authMiddleware, async (req, res) => {
             );
         }
 
-        // Sauvegarder le message de l'utilisateur
-        await storage.addMessage(conversationId, 'user', message);
-
         // Traiter le message avec OpenAI et obtenir la réponse
-        const response = await processMessage(message, userId);
+        const aiResponse = await processMessage(message, userId);
 
         // Sauvegarder la réponse du chatbot
-        await storage.addMessage(conversationId, 'assistant', response);
+        const aiMessageSaved = await storage.addMessage(conversationId, 'assistant', aiResponse);
 
-        res.json({ response });
+        // Récupérer la conversation mise à jour si le titre a été modifié
+        const updatedConversation = existingMessages.length === 0 
+            ? await storage.getConversation(conversationId, userId)
+            : conversation;
+
+        // Renvoyer les messages et la conversation mise à jour
+        res.json({
+            messages: [userMessageSaved, aiMessageSaved],
+            conversation: updatedConversation
+        });
     } catch (error) {
         console.error('Erreur dans /api/chat:', error);
         res.status(500).json({ error: 'Une erreur est survenue' });
