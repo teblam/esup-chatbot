@@ -7,6 +7,7 @@ import {
   Text,
   useColorModeValue,
   useToast,
+  Button,
 } from '@chakra-ui/react';
 import { ArrowUpIcon } from '@chakra-ui/icons';
 import { useState, useEffect, useRef } from 'react';
@@ -22,6 +23,18 @@ const Chat = () => {
   const { user } = useAuth();
   const toast = useToast();
   const { activeConversation, setActiveConversation } = useConversation();
+
+  // Suggestions de messages prédéfinis
+  const suggestions = [
+    "📅 C'est quoi mes cours aujourd'hui ?",
+    "🍽️ Y'a quoi a manger aujourd'hui ?",
+    "⏰ Le RU ouvre a quel heure ?",
+    "📍 Où se trouve le RU le plus proche ?",
+    "🗓️ Quel est mon emploi du temps cette semaine ?",
+    "🚪 A quelle heure ferme le RU ce soir ?",
+    "💰 Combien il me reste sur ma carte IZLY ?",
+    "🏢 Quels RU sont ouverts maintenant ?"
+  ];
 
   // Extract all color values
   const borderColor = useColorModeValue('gray.200', 'gray.700');
@@ -190,6 +203,95 @@ const Chat = () => {
           <div ref={messagesEndRef} />
         </VStack>
       </Box>
+
+      {messages.length === 0 && (
+        <Box 
+          w="full"
+          mb={4}
+        >
+          <Box 
+            maxW="900px" 
+            mx="auto"
+            px={4}
+            position="relative"
+            sx={{
+              maskImage: 'linear-gradient(to right, transparent, black 80px, black calc(100% - 80px), transparent)',
+              WebkitMaskImage: 'linear-gradient(to right, transparent, black 80px, black calc(100% - 80px), transparent)'
+            }}
+          >
+            <Box 
+              overflowX="auto"
+              position="relative"
+              onMouseDown={(e) => {
+                const ele = e.currentTarget;
+                const startX = e.pageX + ele.scrollLeft;
+                
+                const onMouseMove = (e) => {
+                  ele.scrollLeft = startX - e.pageX;
+                  e.preventDefault();
+                };
+                
+                const onMouseUp = () => {
+                  document.removeEventListener('mousemove', onMouseMove);
+                  document.removeEventListener('mouseup', onMouseUp);
+                };
+                
+                document.addEventListener('mousemove', onMouseMove);
+                document.addEventListener('mouseup', onMouseUp);
+              }}
+              style={{ cursor: 'grab' }}
+              css={{
+                '&::-webkit-scrollbar': {
+                  height: '8px',
+                },
+                '&::-webkit-scrollbar-track': {
+                  background: 'transparent',
+                  marginX: '4px',
+                },
+                '&::-webkit-scrollbar-thumb': {
+                  background: useColorModeValue('gray.300', 'gray.600'),
+                  borderRadius: '20px',
+                  '&:hover': {
+                    background: useColorModeValue('gray.400', 'gray.500')
+                  }
+                }
+              }}
+            >
+              <Flex 
+                gap={3} 
+                pb={3}
+                minW="fit-content"
+                w="max-content"
+              >
+                {suggestions.map((suggestion, index) => (
+                  <Button
+                    key={index}
+                    flexShrink={0}
+                    size="sm"
+                    px={4}
+                    height="auto"
+                    py={2}
+                    borderRadius="xl"
+                    bg={useColorModeValue('gray.100', 'gray.700')}
+                    color={useColorModeValue('gray.700', 'white')}
+                    _hover={{
+                      bg: useColorModeValue('gray.200', 'gray.600'),
+                      transform: 'translateY(-1px)',
+                    }}
+                    transition="all 0.2s"
+                    onClick={() => {
+                      setInput(suggestion);
+                      inputRef.current?.focus();
+                    }}
+                  >
+                    {suggestion}
+                  </Button>
+                ))}
+              </Flex>
+            </Box>
+          </Box>
+        </Box>
+      )}
 
       <Box 
         p={4} 
