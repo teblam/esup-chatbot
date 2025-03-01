@@ -215,8 +215,8 @@ const Chat = () => {
             px={4}
             position="relative"
             sx={{
-              maskImage: 'linear-gradient(to right, transparent, black 80px, black calc(100% - 80px), transparent)',
-              WebkitMaskImage: 'linear-gradient(to right, transparent, black 80px, black calc(100% - 80px), transparent)'
+              maskImage: 'linear-gradient(to right, transparent, black 120px, black calc(100% - 120px), transparent)',
+              WebkitMaskImage: 'linear-gradient(to right, transparent, black 120px, black calc(100% - 120px), transparent)'
             }}
           >
             <Box 
@@ -225,8 +225,10 @@ const Chat = () => {
               onMouseDown={(e) => {
                 const ele = e.currentTarget;
                 const startX = e.pageX + ele.scrollLeft;
+                let isDragging = false;
                 
                 const onMouseMove = (e) => {
+                  isDragging = true;
                   ele.scrollLeft = startX - e.pageX;
                   e.preventDefault();
                 };
@@ -234,6 +236,16 @@ const Chat = () => {
                 const onMouseUp = () => {
                   document.removeEventListener('mousemove', onMouseMove);
                   document.removeEventListener('mouseup', onMouseUp);
+                  
+                  // Si on a fait un drag, on empêche le prochain clic
+                  if (isDragging) {
+                    const preventClick = (e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      document.removeEventListener('click', preventClick, true);
+                    };
+                    document.addEventListener('click', preventClick, true);
+                  }
                 };
                 
                 document.addEventListener('mousemove', onMouseMove);
@@ -242,19 +254,10 @@ const Chat = () => {
               style={{ cursor: 'grab' }}
               css={{
                 '&::-webkit-scrollbar': {
-                  height: '8px',
+                  display: 'none'
                 },
-                '&::-webkit-scrollbar-track': {
-                  background: 'transparent',
-                  marginX: '4px',
-                },
-                '&::-webkit-scrollbar-thumb': {
-                  background: useColorModeValue('gray.300', 'gray.600'),
-                  borderRadius: '20px',
-                  '&:hover': {
-                    background: useColorModeValue('gray.400', 'gray.500')
-                  }
-                }
+                '-ms-overflow-style': 'none',
+                'scrollbarWidth': 'none'
               }}
             >
               <Flex 
@@ -279,9 +282,64 @@ const Chat = () => {
                       transform: 'translateY(-1px)',
                     }}
                     transition="all 0.2s"
-                    onClick={() => {
-                      setInput(suggestion);
-                      inputRef.current?.focus();
+                    onClick={async () => {
+                      if (isLoading || !activeConversation) return;
+                      
+                      setIsLoading(true);
+                      const tempUserMessage = {
+                        id: 'temp-' + Date.now(),
+                        role: 'user',
+                        content: suggestion,
+                        created_at: new Date().toISOString()
+                      };
+                      setMessages(prev => [...prev, tempUserMessage]);
+                      
+                      try {
+                        const response = await fetch('/api/chat', {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type': 'application/json',
+                          },
+                          body: JSON.stringify({
+                            message: suggestion,
+                            conversationId: activeConversation.id,
+                          }),
+                        });
+
+                        const data = await response.json();
+                        
+                        if (!response.ok) {
+                          throw new Error(data.error || 'Failed to get AI response');
+                        }
+                        
+                        if (data.messages) {
+                          setMessages(prev => {
+                            const withoutTemp = prev.filter(msg => msg.id !== tempUserMessage.id);
+                            return [...withoutTemp, ...data.messages];
+                          });
+                        }
+
+                        if (data.conversation) {
+                          setActiveConversation(data.conversation);
+                          window.dispatchEvent(new CustomEvent('conversationUpdated', { 
+                            detail: { 
+                              id: data.conversation.id, 
+                              title: data.conversation.title 
+                            } 
+                          }));
+                        }
+                      } catch (error) {
+                        setMessages(prev => prev.filter(msg => msg.id !== tempUserMessage.id));
+                        toast({
+                          title: 'Erreur',
+                          description: error.message || 'Une erreur est survenue',
+                          status: 'error',
+                          duration: 3000,
+                          isClosable: true,
+                        });
+                      } finally {
+                        setIsLoading(false);
+                      }
                     }}
                   >
                     {suggestion}
