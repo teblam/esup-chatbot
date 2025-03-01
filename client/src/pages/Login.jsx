@@ -10,10 +10,12 @@ import {
   Container,
   Heading,
   Link as ChakraLink,
+  useColorModeValue,
 } from '@chakra-ui/react';
 import { useState } from 'react';
 import { Link as RouterLink, Navigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import Navbar from '../components/Navbar';
 
 const Login = () => {
   const [username, setUsername] = useState('');
@@ -46,69 +48,78 @@ const Login = () => {
   };
 
   return (
-    <Container maxW="lg" py={{ base: '12', md: '24' }} px={{ base: '0', sm: '8' }}>
-      <Stack spacing="8">
-        <Stack spacing="6" textAlign="center">
-          <Heading
-            size="xl"
-            bgGradient="linear(to-r, brand.400, brand.600)"
-            bgClip="text"
-          >
-            ESUP Chatbot
-          </Heading>
-          <Text color="gray.600">
-            Connectez-vous pour accéder à votre assistant
-          </Text>
-        </Stack>
-        <Box
-          py={{ base: '0', sm: '8' }}
-          px={{ base: '4', sm: '10' }}
-          bg={{ base: 'transparent', sm: 'white' }}
-          boxShadow={{ base: 'none', sm: 'md' }}
-          borderRadius={{ base: 'none', sm: 'xl' }}
-        >
-          <form onSubmit={handleSubmit}>
-            <Stack spacing="6">
-              <Stack spacing="5">
-                <FormControl isRequired>
-                  <FormLabel htmlFor="username">Nom d'utilisateur</FormLabel>
-                  <Input
-                    id="username"
-                    type="text"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                  />
-                </FormControl>
-                <FormControl isRequired>
-                  <FormLabel htmlFor="password">Mot de passe</FormLabel>
-                  <Input
-                    id="password"
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                  />
-                </FormControl>
-              </Stack>
-              <Button
-                type="submit"
-                colorScheme="brand"
-                size="lg"
-                fontSize="md"
-                isLoading={isLoading}
+    <Box>
+      <Navbar />
+      <Box 
+        bg={useColorModeValue('gray.50', 'gray.900')} 
+        minH="100vh"
+        pt="64px" // Add padding top to account for navbar height
+      >
+        <Container maxW="lg" py={{ base: '24', md: '32' }} px={{ base: '0', sm: '8' }}>
+          <Stack spacing="8">
+            <Stack spacing="6" textAlign="center">
+              <Heading
+                size="xl"
+                bgGradient="linear(to-r, brand.400, brand.600)"
+                bgClip="text"
               >
-                Se connecter
-              </Button>
+                ESUP Chatbot
+              </Heading>
+              <Text color={useColorModeValue('gray.600', 'gray.400')}>
+                Connectez-vous pour accéder à votre assistant
+              </Text>
             </Stack>
-          </form>
-        </Box>
-        <Text textAlign="center">
-          Pas encore de compte ?{' '}
-          <ChakraLink as={RouterLink} to="/register" color="brand.500">
-            S'inscrire
-          </ChakraLink>
-        </Text>
-      </Stack>
-    </Container>
+            <Box
+              py={{ base: '0', sm: '8' }}
+              px={{ base: '4', sm: '10' }}
+              bg={useColorModeValue('white', 'gray.800')}
+              boxShadow={{ base: 'none', sm: 'md' }}
+              borderRadius={{ base: 'none', sm: 'xl' }}
+            >
+              <form onSubmit={handleSubmit}>
+                <Stack spacing="6">
+                  <Stack spacing="5">
+                    <FormControl isRequired>
+                      <FormLabel htmlFor="username">Nom d'utilisateur</FormLabel>
+                      <Input
+                        id="username"
+                        type="text"
+                        value={username}
+                        onChange={(e) => setUsername(e.target.value)}
+                      />
+                    </FormControl>
+                    <FormControl isRequired>
+                      <FormLabel htmlFor="password">Mot de passe</FormLabel>
+                      <Input
+                        id="password"
+                        type="password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                      />
+                    </FormControl>
+                  </Stack>
+                  <Button
+                    type="submit"
+                    colorScheme="brand"
+                    size="lg"
+                    fontSize="md"
+                    isLoading={isLoading}
+                  >
+                    Se connecter
+                  </Button>
+                </Stack>
+              </form>
+            </Box>
+            <Text textAlign="center" color={useColorModeValue('gray.600', 'gray.400')}>
+              Pas encore de compte ?{' '}
+              <ChakraLink as={RouterLink} to="/register" color="brand.500">
+                S'inscrire
+              </ChakraLink>
+            </Text>
+          </Stack>
+        </Container>
+      </Box>
+    </Box>
   );
 };
 
