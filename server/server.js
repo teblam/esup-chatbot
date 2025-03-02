@@ -5,9 +5,27 @@ const { authWithCredentials } = require("esup-multi.js");
 const OpenAI = require("openai");
 const storage = require('./utils/storage');
 const path = require('path');
+const mongoose = require('mongoose');
 
 const app = express();
 const port = 3000;
+
+// Initialiser le serveur au démarrage
+async function initServer() {
+    try {
+        // Attendre que la connexion MongoDB soit établie
+        await mongoose.connect(process.env.MONGODB_URI);
+        console.log('Connexion à MongoDB établie');
+
+        // Démarrer le serveur Express une fois la connexion établie
+        app.listen(port, () => {
+            console.log(`Serveur démarré sur http://localhost:${port}`);
+        });
+    } catch (error) {
+        console.error("Erreur d'initialisation:", error);
+        process.exit(1);
+    }
+}
 
 // Configuration des sessions
 app.use(session({
@@ -199,16 +217,6 @@ async function login(instanceUrl, username, password) {
     } catch (error) {
         console.error("Erreur lors de la connexion :", error);
         throw error;
-    }
-}
-
-// Initialisation au démarrage du serveur
-async function initServer() {
-    try {
-        console.log("Serveur initialisé avec succès");
-    } catch (error) {
-        console.error("Erreur d'initialisation:", error);
-        process.exit(1);
     }
 }
 
@@ -491,9 +499,5 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, '../public/index.html'));
 });
 
-// Initialiser le serveur au démarrage
+// Initialiser le serveur
 initServer();
-
-app.listen(port, () => {
-    console.log(`Serveur démarré sur http://localhost:${port}`);
-});

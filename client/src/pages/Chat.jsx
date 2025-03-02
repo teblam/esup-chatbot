@@ -15,6 +15,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useConversation } from '../contexts/ConversationContext';
 
 const Chat = () => {
+  // Etats pour gerer les messages et le chargement
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -24,7 +25,7 @@ const Chat = () => {
   const toast = useToast();
   const { activeConversation, setActiveConversation } = useConversation();
 
-  // Suggestions de messages prédéfinis
+  // Liste des messages suggeres
   const suggestions = [
     "📅 C'est quoi mes cours aujourd'hui ?",
     "🍽️ Y'a quoi a manger aujourd'hui ?",
@@ -36,17 +37,19 @@ const Chat = () => {
     "🏢 Quels RU sont ouverts maintenant ?"
   ];
 
-  // Extract all color values
+  // Couleurs pour le theme clair/sombre
   const borderColor = useColorModeValue('gray.200', 'gray.700');
-  const bgColor = useColorModeValue('white', 'gray.800');
+  const mainBgColor = useColorModeValue('gray.50', 'gray.900'); // Fond principal plus foncé
+  const chatBgColor = useColorModeValue('white', 'gray.800'); // Zone de chat plus claire
   const inputBgColor = useColorModeValue('white', 'gray.700');
 
-  // Message bubble colors
-  const userBgColor = useColorModeValue('brand.500', 'brand.200');
-  const botBgColor = useColorModeValue('gray.100', 'gray.700');
-  const userTextColor = useColorModeValue('white', 'gray.800');
-  const botTextColor = useColorModeValue('gray.800', 'white');
+  // Couleurs des bulles de messages
+  const userBgColor = useColorModeValue('brand.500', 'brand.400');
+  const botBgColor = useColorModeValue('gray.100', 'gray.600');
+  const userTextColor = useColorModeValue('white', 'white');
+  const botTextColor = useColorModeValue('gray.800', 'gray.100');
 
+  // Chargement des messages quand la conversation change
   useEffect(() => {
     if (activeConversation) {
       loadMessages(activeConversation.id);
@@ -56,6 +59,7 @@ const Chat = () => {
     }
   }, [activeConversation]);
 
+  // Fonction pour charger les messages
   const loadMessages = async (conversationId) => {
     try {
       setMessages([]); // Clear messages while loading
@@ -78,6 +82,7 @@ const Chat = () => {
     }
   };
 
+  // Scroll automatique vers le bas
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -86,6 +91,7 @@ const Chat = () => {
     scrollToBottom();
   }, [messages]);
 
+  // Envoi du message
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!input.trim() || isLoading || !activeConversation) return;
@@ -94,7 +100,7 @@ const Chat = () => {
     const userMessage = input;
     setInput('');
 
-    // Afficher immédiatement le message de l'utilisateur
+    // Message temporaire
     const tempUserMessage = {
       id: 'temp-' + Date.now(),
       role: 'user',
@@ -165,6 +171,7 @@ const Chat = () => {
     }
   };
 
+  // Composant pour afficher un message
   const MessageBubble = ({ message }) => {
     const isUser = message.role === 'user';
     
@@ -178,19 +185,22 @@ const Chat = () => {
         py={2}
         borderRadius="lg"
         my={1}
+        boxShadow="sm"
       >
         <Text whiteSpace="pre-wrap">{message.content}</Text>
       </Box>
     );
   };
 
+  // Page de chargement
   if (!activeConversation) {
-    return <Box p={4}>Chargement...</Box>;
+    return <Box p={4} bg={mainBgColor}>Chargement...</Box>;
   }
 
+  // Structure principale du chat
   return (
-    <Flex direction="column" h="calc(100vh - 64px)" position="relative">
-      <Box flex="1" overflowY="auto" position="relative">
+    <Flex direction="column" h="calc(100vh - 64px)" position="relative" bg={mainBgColor}>
+      <Box flex="1" overflowY="auto" position="relative" bg={chatBgColor}>
         <VStack
           spacing={4}
           p={4}
@@ -207,7 +217,9 @@ const Chat = () => {
       {messages.length === 0 && (
         <Box 
           w="full"
-          mb={4}
+          bg={chatBgColor}
+          borderBottom="1px"
+          borderColor={borderColor}
         >
           <Box 
             maxW="900px" 
@@ -237,7 +249,6 @@ const Chat = () => {
                   document.removeEventListener('mousemove', onMouseMove);
                   document.removeEventListener('mouseup', onMouseUp);
                   
-                  // Si on a fait un drag, on empêche le prochain clic
                   if (isDragging) {
                     const preventClick = (e) => {
                       e.stopPropagation();
@@ -262,7 +273,8 @@ const Chat = () => {
             >
               <Flex 
                 gap={3} 
-                pb={3}
+                pb={4}
+                pt={2}
                 minW="fit-content"
                 w="max-content"
               >
@@ -276,7 +288,7 @@ const Chat = () => {
                     py={2}
                     borderRadius="xl"
                     bg={useColorModeValue('gray.100', 'gray.700')}
-                    color={useColorModeValue('gray.700', 'white')}
+                    color={useColorModeValue('gray.700', 'gray.100')}
                     _hover={{
                       bg: useColorModeValue('gray.200', 'gray.600'),
                       transform: 'translateY(-1px)',
@@ -353,10 +365,12 @@ const Chat = () => {
 
       <Box 
         p={4} 
-        borderTop="1px" 
-        borderColor={borderColor}
-        bg={bgColor}
+        bg={chatBgColor}
         width="100%"
+        borderTop={messages.length > 0 ? "1px" : "none"}
+        borderColor={borderColor}
+        boxShadow="0 -2px 10px rgba(0,0,0,0.05)"
+        position="relative"
       >
         <form onSubmit={handleSubmit}>
           <Flex gap={2} maxW="900px" mx="auto">
@@ -367,6 +381,18 @@ const Chat = () => {
               placeholder="Tapez votre message..."
               disabled={isLoading}
               bg={inputBgColor}
+              _placeholder={{ color: useColorModeValue('gray.500', 'gray.400') }}
+              borderColor={useColorModeValue('gray.200', 'gray.600')}
+              _hover={{
+                borderColor: useColorModeValue('gray.300', 'gray.500')
+              }}
+              _focus={{
+                borderColor: useColorModeValue('brand.500', 'brand.400'),
+                boxShadow: useColorModeValue(
+                  '0 0 0 1px var(--chakra-colors-brand-500)',
+                  '0 0 0 1px var(--chakra-colors-brand-400)'
+                )
+              }}
             />
             <IconButton
               type="submit"
@@ -382,4 +408,4 @@ const Chat = () => {
   );
 };
 
-export default Chat; 
+export default Chat;
