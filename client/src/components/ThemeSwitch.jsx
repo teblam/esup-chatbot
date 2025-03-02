@@ -10,13 +10,18 @@ import { MdComputer } from 'react-icons/md';
 import { motion } from 'framer-motion';
 import { useState, useEffect } from 'react';
 
+// on wrap le Box de chakra avec motion pour l'animation
 const MotionBox = motion(Box);
 
 const ThemeSwitch = () => {
+  // hook pour gerer le theme light/dark
   const { colorMode, setColorMode } = useColorMode();
-  const [selectedMode, setSelectedMode] = useState(colorMode);
+  // state local pour savoir quel bouton est selectionne - initialisé à 'system'
+  const [selectedMode, setSelectedMode] = useState('system');
   
   useEffect(() => {
+    // quand on choisit system, on check le theme du pc
+    // sinon on met direct le theme choisi (light/dark)
     if (selectedMode === 'system') {
       const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
       setColorMode(isDark ? 'dark' : 'light');
@@ -26,10 +31,12 @@ const ThemeSwitch = () => {
   }, [selectedMode, setColorMode]);
 
   const getButtonWidth = () => {
+    // largeur totale (300px) - padding (4px) / 3 boutons
     return (300 - 4) / 3;
   };
 
   const getPositionX = () => {
+    // calcule la position du selecteur selon le mode
     const buttonWidth = getButtonWidth();
     switch (selectedMode) {
       case 'light': return 0;
@@ -40,6 +47,7 @@ const ThemeSwitch = () => {
   };
   
   return (
+    // conteneur principal avec fond gris/fonce
     <Box
       bg={useColorModeValue('gray.100', 'gray.700')}
       p="2px"
@@ -47,6 +55,7 @@ const ThemeSwitch = () => {
       position="relative"
       width="300px"
     >
+      {/* le selecteur qui slide avec l'animation */}
       <MotionBox
         position="absolute"
         bg={useColorModeValue('white', 'gray.800')}
@@ -67,7 +76,9 @@ const ThemeSwitch = () => {
         left="2px"
       />
       
+      {/* les 3 boutons clair/system/sombre */}
       <Flex position="relative" gap={0}>
+        {/* bouton mode clair */}
         <Button
           flex={1}
           variant="ghost"
@@ -82,6 +93,8 @@ const ThemeSwitch = () => {
         >
           Clair
         </Button>
+
+        {/* bouton mode systeme */}
         <Button
           flex={1}
           variant="ghost"
@@ -96,6 +109,8 @@ const ThemeSwitch = () => {
         >
           Système
         </Button>
+
+        {/* bouton mode sombre */}
         <Button
           flex={1}
           variant="ghost"

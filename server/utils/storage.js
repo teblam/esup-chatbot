@@ -1,94 +1,52 @@
-const sqlite3 = require('sqlite3').verbose();
-const path = require('path');
-const fs = require('fs');
+const mongoose = require('mongoose');
 const bcrypt = require('bcrypt');
 
-// Créer le dossier data s'il n'existe pas
-const dataDir = path.join(__dirname, '..', 'data');
-if (!fs.existsSync(dataDir)) {
-    console.log('Création du dossier data...');
-    fs.mkdirSync(dataDir);
-}
+// Connexion à MongoDB
+mongoose.connect(process.env.MONGODB_URI)
+    .then(() => console.log('Connexion à MongoDB réussie'))
+    .catch(err => console.error('Erreur de connexion à MongoDB:', err));
 
-console.log('Connexion à la base de données SQLite...');
-const db = new sqlite3.Database(path.join(dataDir, 'database.db'), (err) => {
-    if (err) {
-        console.error('Erreur de connexion à la base de données:', err);
-    } else {
-        console.log('Connexion à la base de données réussie');
-    }
+// Schéma Utilisateur
+const userSchema = new mongoose.Schema({
+    username: { type: String, unique: true, required: true },
+    password: { type: String, required: true },
+    uphf_username: { type: String, required: true },
+    uphf_password: { type: String, required: true },
+    role: { type: String, default: 'user' },
+    preferred_language: { type: String, default: 'fr' },
+    preferred_restaurant: String,
+    created_at: { type: Date, default: Date.now }
 });
 
-// Initialiser la base de données
-console.log('Initialisation des tables...');
-db.serialize(() => {
-    // Table utilisateurs
-    db.run(`CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT UNIQUE NOT NULL,
-        password TEXT NOT NULL,
-        uphf_username TEXT NOT NULL,
-        uphf_password TEXT NOT NULL,
-        role TEXT DEFAULT 'user',
-        preferred_language TEXT DEFAULT 'fr',
-        preferred_restaurant TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )`, (err) => {
-        if (err) {
-            console.error('Erreur création table users:', err);
-        } else {
-            console.log('Table users créée/vérifiée avec succès');
-        }
-    });
-
-    // Table conversations avec lien vers l'utilisateur
-    db.run(`CREATE TABLE IF NOT EXISTS conversations (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL,
-        title TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (user_id) REFERENCES users(id)
-    )`, (err) => {
-        if (err) {
-            console.error('Erreur création table conversations:', err);
-        } else {
-            console.log('Table conversations créée/vérifiée avec succès');
-        }
-    });
-
-    db.run(`CREATE TABLE IF NOT EXISTS messages (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        conversation_id INTEGER,
-        role TEXT,
-        content TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (conversation_id) REFERENCES conversations(id)
-    )`, (err) => {
-        if (err) {
-            console.error('Erreur création table messages:', err);
-        } else {
-            console.log('Table messages créée/vérifiée avec succès');
-        }
-    });
+// Schéma Conversation
+const conversationSchema = new mongoose.Schema({
+    user_id: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    title: String,
+    created_at: { type: Date, default: Date.now }
 });
+
+// Schéma Message
+const messageSchema = new mongoose.Schema({
+    conversation_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Conversation', required: true },
+    role: { type: String, required: true },
+    content: { type: String, required: true },
+    created_at: { type: Date, default: Date.now }
+});
+
+// Modèles
+const User = mongoose.model('User', userSchema);
+const Conversation = mongoose.model('Conversation', conversationSchema);
+const Message = mongoose.model('Message', messageSchema);
 
 const storage = {
     async userExists(username) {
-        return new Promise((resolve, reject) => {
-            db.get('SELECT COUNT(*) as count FROM users WHERE username = ?', [username], (err, row) => {
-                if (err) {
-                    reject(err);
-                    return;
-                }
-                resolve(row.count > 0);
-            });
-        });
+        const count = await User.countDocuments({ username });
+        return count > 0;
     },
 
     async createUser(userData) {
         const { username, password, uphfUsername, uphfPassword, preferredLanguage, preferredRestaurant } = userData;
         
-        // Vérifier si l'utilisateur existe déjà
         const exists = await this.userExists(username);
         if (exists) {
             throw new Error('Cet utilisateur existe déjà');
@@ -96,195 +54,144 @@ const storage = {
 
         const hashedPassword = await bcrypt.hash(password, 10);
         
-        return new Promise((resolve, reject) => {
-            db.run(
-                `INSERT INTO users (username, password, uphf_username, uphf_password, preferred_language, preferred_restaurant) 
-                 VALUES (?, ?, ?, ?, ?, ?)`,
-                [username, hashedPassword, uphfUsername, uphfPassword, preferredLanguage, preferredRestaurant],
-                function(err) {
-                    if (err) {
-                        console.error('Erreur création utilisateur:', err);
-                        reject(err);
-                        return;
-                    }
-                    console.log('Utilisateur créé avec succès:', username);
-                    resolve({ id: this.lastID, username });
-                }
-            );
+        const user = new User({
+            username,
+            password: hashedPassword,
+            uphf_username: uphfUsername,
+            uphf_password: uphfPassword,
+            preferred_language: preferredLanguage,
+            preferred_restaurant: preferredRestaurant
         });
+
+        await user.save();
+        return { id: user._id, username };
     },
 
     async verifyUser(username, password) {
-        return new Promise((resolve, reject) => {
-            db.get('SELECT * FROM users WHERE username = ?', [username], async (err, user) => {
-                try {
-                    if (err) {
-                        reject(err);
-                        return;
-                    }
-                    if (!user) {
-                        resolve(null);
-                        return;
-                    }
-                    const match = await bcrypt.compare(password, user.password);
-                    resolve(match ? user : null);
-                } catch (error) {
-                    reject(error);
-                }
-            });
-        });
+        const user = await User.findOne({ username });
+        if (!user) return null;
+
+        const match = await bcrypt.compare(password, user.password);
+        if (!match) return null;
+
+        // Convertir _id en id pour la compatibilité
+        const userObj = user.toObject();
+        userObj.id = userObj._id;
+        delete userObj._id;
+        return userObj;
     },
 
     async getUser(userId) {
-        return new Promise((resolve, reject) => {
-            db.get('SELECT * FROM users WHERE id = ?', [userId], (err, user) => {
-                if (err) reject(err);
-                if (user) delete user.password;
-                resolve(user);
-            });
-        });
+        const user = await User.findById(userId);
+        if (!user) return null;
+
+        const userObj = user.toObject();
+        delete userObj.password;
+        userObj.id = userObj._id;
+        delete userObj._id;
+        return userObj;
     },
 
     async getUserUPHFCredentials(userId) {
-        return new Promise((resolve, reject) => {
-            db.get('SELECT uphf_username, uphf_password FROM users WHERE id = ?', [userId], (err, credentials) => {
-                if (err) reject(err);
-                resolve(credentials);
-            });
-        });
+        const user = await User.findById(userId).select('uphf_username uphf_password');
+        return user;
     },
 
     async createConversation(userId, title = 'Nouvelle conversation') {
-        return new Promise((resolve, reject) => {
-            const now = new Date().toISOString();
-            db.run(
-                'INSERT INTO conversations (user_id, title, created_at) VALUES (?, ?, ?)', 
-                [userId, title, now], 
-                function(err) {
-                    if (err) {
-                        reject(err);
-                        return;
-                    }
-                    // Récupérer la conversation complète après création
-                    db.get(
-                        'SELECT * FROM conversations WHERE id = ?',
-                        [this.lastID],
-                        (err, conversation) => {
-                            if (err) {
-                                reject(err);
-                                return;
-                            }
-                            resolve(conversation);
-                        }
-                    );
-                }
-            );
+        const conversation = new Conversation({
+            user_id: userId,
+            title,
+            created_at: new Date()
         });
+
+        await conversation.save();
+        const convObj = conversation.toObject();
+        convObj.id = convObj._id;
+        delete convObj._id;
+        return convObj;
     },
 
     async getConversations(userId) {
-        return new Promise((resolve, reject) => {
-            db.all('SELECT * FROM conversations WHERE user_id = ? ORDER BY created_at DESC', 
-                [userId], 
-                (err, rows) => {
-                    if (err) reject(err);
-                    resolve(rows);
-                }
-            );
+        const conversations = await Conversation.find({ user_id: userId })
+            .sort({ created_at: -1 });
+        
+        return conversations.map(conv => {
+            const convObj = conv.toObject();
+            convObj.id = convObj._id;
+            delete convObj._id;
+            return convObj;
         });
     },
 
     async getConversationMessages(conversationId, userId) {
-        return new Promise((resolve, reject) => {
-            db.all(`SELECT m.* FROM messages m 
-                    JOIN conversations c ON m.conversation_id = c.id 
-                    WHERE c.id = ? AND c.user_id = ? 
-                    ORDER BY m.created_at ASC`, 
-                [conversationId, userId], 
-                (err, rows) => {
-                    if (err) reject(err);
-                    resolve(rows);
-                }
-            );
+        // Vérifier que la conversation appartient à l'utilisateur
+        const conversation = await Conversation.findOne({
+            _id: conversationId,
+            user_id: userId
+        });
+
+        if (!conversation) return [];
+
+        const messages = await Message.find({ conversation_id: conversationId })
+            .sort({ created_at: 1 });
+
+        return messages.map(msg => {
+            const msgObj = msg.toObject();
+            msgObj.id = msgObj._id;
+            delete msgObj._id;
+            return msgObj;
         });
     },
 
-    async addMessage(conversationId, role, content, created_at = new Date().toISOString()) {
-        return new Promise((resolve, reject) => {
-            db.run('INSERT INTO messages (conversation_id, role, content, created_at) VALUES (?, ?, ?, ?)',
-                [conversationId, role, content, created_at], 
-                function(err) {
-                    if (err) reject(err);
-                    resolve({ 
-                        id: this.lastID, 
-                        conversation_id: conversationId, 
-                        role, 
-                        content,
-                        created_at
-                    });
-                }
-            );
+    async addMessage(conversationId, role, content, created_at = new Date()) {
+        const message = new Message({
+            conversation_id: conversationId,
+            role,
+            content,
+            created_at
         });
+
+        await message.save();
+        const msgObj = message.toObject();
+        msgObj.id = msgObj._id;
+        delete msgObj._id;
+        return msgObj;
     },
 
     async getConversation(conversationId, userId) {
-        return new Promise((resolve, reject) => {
-            db.get('SELECT * FROM conversations WHERE id = ? AND user_id = ?', 
-                [conversationId, userId], 
-                (err, conversation) => {
-                    if (err) reject(err);
-                    resolve(conversation);
-                }
-            );
+        const conversation = await Conversation.findOne({
+            _id: conversationId,
+            user_id: userId
         });
+
+        if (!conversation) return null;
+
+        const convObj = conversation.toObject();
+        convObj.id = convObj._id;
+        delete convObj._id;
+        return convObj;
     },
 
     async updateConversationTitle(conversationId, title) {
-        return new Promise((resolve, reject) => {
-            db.run('UPDATE conversations SET title = ? WHERE id = ?',
-                [title, conversationId],
-                function(err) {
-                    if (err) reject(err);
-                    resolve({ id: conversationId, title });
-                }
-            );
-        });
+        const conversation = await Conversation.findByIdAndUpdate(
+            conversationId,
+            { title },
+            { new: true }
+        );
+
+        if (!conversation) return null;
+
+        const convObj = conversation.toObject();
+        convObj.id = convObj._id;
+        delete convObj._id;
+        return convObj;
     },
 
     async deleteConversation(conversationId) {
-        return new Promise((resolve, reject) => {
-            // Commencer une transaction pour s'assurer que tout est supprimé
-            db.serialize(() => {
-                db.run('BEGIN TRANSACTION');
-                
-                // Supprimer d'abord les messages
-                db.run('DELETE FROM messages WHERE conversation_id = ?', [conversationId], (err) => {
-                    if (err) {
-                        db.run('ROLLBACK');
-                        reject(err);
-                        return;
-                    }
-                    
-                    // Puis supprimer la conversation
-                    db.run('DELETE FROM conversations WHERE id = ?', [conversationId], (err) => {
-                        if (err) {
-                            db.run('ROLLBACK');
-                            reject(err);
-                            return;
-                        }
-                        
-                        db.run('COMMIT', (err) => {
-                            if (err) {
-                                db.run('ROLLBACK');
-                                reject(err);
-                                return;
-                            }
-                            resolve();
-                        });
-                    });
-                });
-            });
-        });
+        // Supprimer d'abord tous les messages associés
+        await Message.deleteMany({ conversation_id: conversationId });
+        // Puis supprimer la conversation
+        await Conversation.findByIdAndDelete(conversationId);
     }
 };
 

@@ -15,6 +15,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useConversation } from '../contexts/ConversationContext';
 
 const Chat = () => {
+  // Etats pour gerer les messages et le chargement
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -24,7 +25,7 @@ const Chat = () => {
   const toast = useToast();
   const { activeConversation, setActiveConversation } = useConversation();
 
-  // Suggestions de messages prédéfinis
+  // Liste des messages suggeres
   const suggestions = [
     "📅 C'est quoi mes cours aujourd'hui ?",
     "🍽️ Y'a quoi a manger aujourd'hui ?",
@@ -36,18 +37,19 @@ const Chat = () => {
     "🏢 Quels RU sont ouverts maintenant ?"
   ];
 
-  // Extract all color values
+  // Couleurs pour le theme clair/sombre
   const borderColor = useColorModeValue('gray.200', 'gray.700');
   const mainBgColor = useColorModeValue('gray.50', 'gray.900'); // Fond principal plus foncé
   const chatBgColor = useColorModeValue('white', 'gray.800'); // Zone de chat plus claire
   const inputBgColor = useColorModeValue('white', 'gray.700');
 
-  // Message bubble colors
+  // Couleurs des bulles de messages
   const userBgColor = useColorModeValue('brand.500', 'brand.400');
   const botBgColor = useColorModeValue('gray.100', 'gray.600');
   const userTextColor = useColorModeValue('white', 'white');
   const botTextColor = useColorModeValue('gray.800', 'gray.100');
 
+  // Chargement des messages quand la conversation change
   useEffect(() => {
     if (activeConversation) {
       loadMessages(activeConversation.id);
@@ -57,6 +59,7 @@ const Chat = () => {
     }
   }, [activeConversation]);
 
+  // Fonction pour charger les messages
   const loadMessages = async (conversationId) => {
     try {
       setMessages([]); // Clear messages while loading
@@ -79,6 +82,7 @@ const Chat = () => {
     }
   };
 
+  // Scroll automatique vers le bas
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -87,6 +91,7 @@ const Chat = () => {
     scrollToBottom();
   }, [messages]);
 
+  // Envoi du message
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!input.trim() || isLoading || !activeConversation) return;
@@ -95,7 +100,7 @@ const Chat = () => {
     const userMessage = input;
     setInput('');
 
-    // Afficher immédiatement le message de l'utilisateur
+    // Message temporaire
     const tempUserMessage = {
       id: 'temp-' + Date.now(),
       role: 'user',
@@ -166,6 +171,7 @@ const Chat = () => {
     }
   };
 
+  // Composant pour afficher un message
   const MessageBubble = ({ message }) => {
     const isUser = message.role === 'user';
     
@@ -186,10 +192,12 @@ const Chat = () => {
     );
   };
 
+  // Page de chargement
   if (!activeConversation) {
     return <Box p={4} bg={mainBgColor}>Chargement...</Box>;
   }
 
+  // Structure principale du chat
   return (
     <Flex direction="column" h="calc(100vh - 64px)" position="relative" bg={mainBgColor}>
       <Box flex="1" overflowY="auto" position="relative" bg={chatBgColor}>
@@ -400,4 +408,4 @@ const Chat = () => {
   );
 };
 
-export default Chat; 
+export default Chat;

@@ -13,28 +13,33 @@ import {
   Select,
   useColorModeValue,
 } from '@chakra-ui/react';
+
+// Import des hooks React et composants de routage
 import { useState } from 'react';
 import { Link as RouterLink, Navigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import Navbar from '../components/Navbar';
 
 const Register = () => {
+  // État initial du formulaire avec valeurs par défaut
   const [formData, setFormData] = useState({
     username: '',
     password: '',
-    uphfUsername: '',
-    uphfPassword: '',
+    uphfUsername: '', // Identifiants pour l'université
+    uphfPassword: '', // Mot de passe pour l'université
     preferredLanguage: 'fr',
-    preferredRestaurant: '1184', // Restaurant Universitaire Ronzier par défaut
+    preferredRestaurant: '1184',
   });
   const [isLoading, setIsLoading] = useState(false);
-  const { register, user } = useAuth();
-  const toast = useToast();
+  const { register, user } = useAuth(); // Contexte d'authentification
+  const toast = useToast(); // Systeme de notifications
 
+  // Redirection si déjà connecté
   if (user) {
     return <Navigate to="/" />;
   }
 
+  // Gestion des changements dans le formulaire
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({
@@ -43,12 +48,15 @@ const Register = () => {
     }));
   };
 
+  // Gestion de la soumission du formulaire
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
 
+    // Tentative d'inscription
     const result = await register(formData);
 
+    // Gestion des erreurs et succès
     if (!result.success) {
       toast({
         title: 'Erreur d\'inscription',
@@ -70,6 +78,7 @@ const Register = () => {
     setIsLoading(false);
   };
 
+  // Liste des restaurants disponibles
   const restaurants = [
     { id: '1184', name: 'Restaurant Universitaire Ronzier' },
     { id: '1165', name: 'Restaurant Universitaire Rambouillet' },
@@ -86,13 +95,16 @@ const Register = () => {
   return (
     <Box>
       <Navbar />
+      {/* Container principal avec fond adaptatif */}
       <Box 
         bg={useColorModeValue('gray.50', 'gray.900')} 
         minH="100vh"
-        pt="64px" // Add padding top to account for navbar height
+        pt="64px" // Espace pour la navbar
       >
+        {/* Container centré pour le formulaire */}
         <Container maxW="lg" py={{ base: '24', md: '32' }} px={{ base: '0', sm: '8' }}>
           <Stack spacing="8">
+            {/* Entete de la page */}
             <Stack spacing="6" textAlign="center">
               <Heading
                 size="xl"
@@ -105,6 +117,8 @@ const Register = () => {
                 Créez votre compte pour commencer
               </Text>
             </Stack>
+
+            {/* Boite du formulaire */}
             <Box
               py={{ base: '0', sm: '8' }}
               px={{ base: '4', sm: '10' }}
@@ -112,9 +126,11 @@ const Register = () => {
               boxShadow={{ base: 'none', sm: 'md' }}
               borderRadius={{ base: 'none', sm: 'xl' }}
             >
+              {/* Formulaire d'inscription */}
               <form onSubmit={handleSubmit}>
                 <Stack spacing="6">
                   <Stack spacing="5">
+                    {/* Champs du formulaire */}
                     <FormControl isRequired>
                       <FormLabel>Nom d'utilisateur</FormLabel>
                       <Input
@@ -153,6 +169,7 @@ const Register = () => {
                       />
                     </FormControl>
 
+                    {/* Selection de la langue */}
                     <FormControl>
                       <FormLabel>Langue préférée</FormLabel>
                       <Select
@@ -165,6 +182,7 @@ const Register = () => {
                       </Select>
                     </FormControl>
 
+                    {/* Selection du restaurant */}
                     <FormControl>
                       <FormLabel>Restaurant préféré</FormLabel>
                       <Select
@@ -181,6 +199,7 @@ const Register = () => {
                     </FormControl>
                   </Stack>
 
+                  {/* Bouton de soumission */}
                   <Button
                     type="submit"
                     colorScheme="brand"
@@ -193,6 +212,8 @@ const Register = () => {
                 </Stack>
               </form>
             </Box>
+
+            {/* Lien vers la page de connexion */}
             <Text textAlign="center" color={useColorModeValue('gray.600', 'gray.400')}>
               Déjà un compte ?{' '}
               <ChakraLink as={RouterLink} to="/login" color="brand.500">
@@ -206,4 +227,4 @@ const Register = () => {
   );
 };
 
-export default Register; 
+export default Register;
