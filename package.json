@@ -1,12 +1,12 @@
 {
-  "name": "uphf-chatbot",
+  "name": "esup-chatbot",
   "version": "1.0.0",
-  "description": "Chatbot UPHF",
+  "description": "Chatbot Universitaire",
   "main": "server.js",
   "scripts": {
     "server": "nodemon server/server.js",
     "client": "cd client && npm run dev",
-    "dev": "concurrently \"npm run server\" \"npm run dev\"",
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
     "prep": "npm install && cd client && npm install"
   },
   "keywords": [],
