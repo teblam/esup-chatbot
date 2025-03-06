@@ -2,6 +2,8 @@
 
 Un chatbot intelligent pour les étudiants et le personnel des établissements d'enseignement supérieur (uniquement l'Université Polytechnique des Hauts-de-France pour l'instant), offrant des réponses instantanées aux questions concernant les cours, les restaurants universitaires, et d'autres services du campus.
 
+**Note: ce programme est mis à disposition à titre expérimental: aucune garantie ne peut être fournie en termes de sécurité ou de stabilité quant à son utilisation, nous déconseillons la mise en production du projet sur un serveur ouvert à Internet.**
+
 ## Fonctionnalités
 
 - **Interface moderne et responsive** avec thème clair/sombre
@@ -22,18 +24,21 @@ Un chatbot intelligent pour les étudiants et le personnel des établissements d
 
 - Node.js (v18+)
 - npm ou yarn
-- MongoDB (local ou distant)
+- Serveur MongoDB (local ou distant)
+- Clé d'API OpenAI (non fournie)
 
 ### Installation et configuration
 
 1. Clonez le dépôt:
-   ```
+
+   ```bash
    git clone https://github.com/teblam/esup-chatbot.git
    cd esup-chatbot
    ```
 
 2. Installez les dépendances:
-   ```
+
+   ```bash
    npm run prep
    ```
 
@@ -42,8 +47,8 @@ Un chatbot intelligent pour les étudiants et le personnel des établissements d
    - Modifiez les variables selon votre configuration
 
 4. Lancez l'application:
-   ```
 
+   ```bash
    npm run dev
    ```
 
@@ -73,9 +78,9 @@ Un chatbot intelligent pour les étudiants et le personnel des établissements d
 ### Suggestions intelligentes
 
 Le chatbot propose des suggestions contextuelles basées sur les cas d'utilisation courants des étudiants:
+
 - Consulter l'emploi du temps
 - Vérifier les menus du restaurant universitaire
-
 
 ### Thème personnalisable
 
@@ -86,14 +91,14 @@ Le chatbot propose des suggestions contextuelles basées sur les cas d'utilisati
 ### Animations fluides
 
 L'interface utilise Framer Motion pour offrir:
+
 - Animations des messages entrants et sortants
 - Transitions douces entre les écrans
 - Retours visuels lors des interactions
 
-
 ## Contribution
 
-Les contributions sont les bienvenues! 
+Les contributions sont les bienvenues!
 
 ---
 

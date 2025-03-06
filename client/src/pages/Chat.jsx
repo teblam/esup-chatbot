@@ -14,18 +14,74 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useConversation } from '../contexts/ConversationContext';
 import { motion } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
+import React from 'react';
 
 // Wrapper de motion pour animation
 const MotionBox = motion(Box);
 const MotionFlex = motion(Flex);
 
+// Composant de saisie isolé
+const ChatInput = React.memo(({ onSubmit, isLoading, inputBgColor, placeholderColor, inputBorderColor, inputHoverBorderColor, inputFocusBorderColor, inputFocusBoxShadow }) => {
+  const [inputValue, setInputValue] = useState('');
+  const inputRef = useRef(null);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!inputValue.trim() || isLoading) return;
+    onSubmit(inputValue);
+    setInputValue('');
+  };
+
+  useEffect(() => {
+    if (!isLoading) {
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 100);
+    }
+  }, [isLoading]);
+
+  return (
+    <form onSubmit={handleSubmit} style={{ width: '100%' }}>
+      <Flex gap={2} maxW="900px" mx="auto">
+        <Input
+          ref={inputRef}
+          value={inputValue}
+          onChange={(e) => setInputValue(e.target.value)}
+          placeholder="Tapez votre message..."
+          disabled={isLoading}
+          bg={inputBgColor}
+          _placeholder={{ color: placeholderColor }}
+          borderColor={inputBorderColor}
+          _hover={{
+            borderColor: inputHoverBorderColor
+          }}
+          _focus={{
+            borderColor: inputFocusBorderColor,
+            boxShadow: inputFocusBoxShadow
+          }}
+        />
+        <MotionBox
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+        >
+          <IconButton
+            type="submit"
+            icon={<ArrowUpIcon />}
+            isLoading={isLoading}
+            aria-label="Envoyer"
+            colorScheme="brand"
+          />
+        </MotionBox>
+      </Flex>
+    </form>
+  );
+});
+
 const Chat = () => {
   // Etats pour gerer les messages et le chargement
   const [messages, setMessages] = useState([]);
-  const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef(null);
-  const inputRef = useRef(null);
   const toast = useToast();
   const { activeConversation, setActiveConversation } = useConversation();
 
@@ -149,9 +205,6 @@ const Chat = () => {
   useEffect(() => {
     if (activeConversation) {
       loadMessages(activeConversation.id);
-      setTimeout(() => {
-        inputRef.current?.focus();
-      }, 100);
     }
   }, [activeConversation, loadMessages]);
 
@@ -165,13 +218,10 @@ const Chat = () => {
   }, [messages]);
 
   // Envoi du message
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!input.trim() || isLoading || !activeConversation) return;
+  const handleSubmit = async (userMessage) => {
+    if (!userMessage.trim() || isLoading || !activeConversation) return;
 
     setIsLoading(true);
-    const userMessage = input;
-    setInput('');
 
     // Message temporaire
     const tempUserMessage = {
@@ -200,19 +250,15 @@ const Chat = () => {
         throw new Error(data.error || 'Failed to get AI response');
       }
 
-      console.log('Response from API:', data); // Debug log
+      console.log('Response from API:', data);
       
-      // Remplacer le message temporaire par les messages sauvegardés
       if (data.messages) {
         setMessages(prev => {
-          // Enlever le message temporaire
           const withoutTemp = prev.filter(msg => msg.id !== tempUserMessage.id);
-          // Ajouter les messages sauvegardés
           return [...withoutTemp, ...data.messages];
         });
       }
 
-      // Mettre à jour la conversation si le titre a été modifié
       if (data.conversation) {
         setActiveConversation(data.conversation);
         window.dispatchEvent(new CustomEvent('conversationUpdated', { 
@@ -223,13 +269,7 @@ const Chat = () => {
         }));
       }
 
-      // Refocus input after response
-      setTimeout(() => {
-        inputRef.current?.focus();
-      }, 100);
-
     } catch (error) {
-      // En cas d'erreur, on retire le message temporaire
       setMessages(prev => prev.filter(msg => msg.id !== tempUserMessage.id));
       console.error('Error:', error);
       toast({
@@ -245,7 +285,7 @@ const Chat = () => {
   };
 
   // Composant pour afficher un message avec animation
-  const MessageBubble = ({ message, index }) => {
+  const MessageBubble = React.memo(({ message, index }) => {
     const isUser = message.role === 'user';
     const isNew = message.id && message.id.toString().includes('temp-');
     
@@ -312,7 +352,6 @@ const Chat = () => {
         animate={isNew ? "sending" : "visible"}
         initial="hidden"
         variants={fadeInVariants}
-        layout
       >
         <MotionBox
           bg={isUser ? userBgColor : botBgColor}
@@ -333,7 +372,7 @@ const Chat = () => {
         </MotionBox>
       </MotionBox>
     );
-  };
+  });
 
   // Page de chargement
   if (!activeConversation) {
@@ -518,39 +557,16 @@ const Chat = () => {
         animate={{ y: 0, opacity: 1 }}
         transition={{ delay: 0.3 }}
       >
-        <form onSubmit={handleSubmit} style={{ width: '100%' }}>
-          <Flex gap={2} maxW="900px" mx="auto">
-            <Input
-              ref={inputRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Tapez votre message..."
-              disabled={isLoading}
-              bg={inputBgColor}
-              _placeholder={{ color: placeholderColor }}
-              borderColor={inputBorderColor}
-              _hover={{
-                borderColor: inputHoverBorderColor
-              }}
-              _focus={{
-                borderColor: inputFocusBorderColor,
-                boxShadow: inputFocusBoxShadow
-              }}
-            />
-            <MotionBox
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-            >
-              <IconButton
-                type="submit"
-                icon={<ArrowUpIcon />}
-                isLoading={isLoading}
-                aria-label="Envoyer"
-                colorScheme="brand"
-              />
-            </MotionBox>
-          </Flex>
-        </form>
+        <ChatInput
+          onSubmit={handleSubmit}
+          isLoading={isLoading}
+          inputBgColor={inputBgColor}
+          placeholderColor={placeholderColor}
+          inputBorderColor={inputBorderColor}
+          inputHoverBorderColor={inputHoverBorderColor}
+          inputFocusBorderColor={inputFocusBorderColor}
+          inputFocusBoxShadow={inputFocusBoxShadow}
+        />
       </MotionFlex>
     </Flex>
   );

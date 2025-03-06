@@ -8,6 +8,8 @@ const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY.trim()
 });
 
+const date_ajd = new Date().toJSON().slice(0, 10);
+
 const tools = [
     {
         type: "function",
@@ -75,9 +77,7 @@ async function runConversation(historique_messages, userId) {
 }
 
 async function processMessage(message, userId, historique_messages, globalUser, storage) {
-    try {
-        const date_ajd = new Date().toJSON().slice(0, 10);
-        
+    try {        
         // Ajout du message utilisateur à l'historique
         historique_messages.push({ 
             role: "user", 
@@ -193,7 +193,6 @@ async function initierConversation(userId, storage) {
     const userPreferences = await storage.getUser(userId);
     const language = userPreferences.preferred_language;
     const preferredRestaurant = userPreferences.preferred_restaurant;
-    const date_ajd = new Date().toJSON().slice(0, 10);
 
     const historique_messages = [];
     historique_messages.push({
