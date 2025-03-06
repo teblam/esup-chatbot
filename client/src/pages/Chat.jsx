@@ -10,7 +10,7 @@ import {
   Button,
 } from '@chakra-ui/react';
 import { ArrowUpIcon } from '@chakra-ui/icons';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useConversation } from '../contexts/ConversationContext';
 import { motion } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
@@ -31,14 +31,10 @@ const Chat = () => {
 
   // Liste des messages suggeres
   const suggestions = [
-    "📅 C'est quoi mes cours aujourd'hui ?",
-    "🍽️ Y'a quoi a manger aujourd'hui ?",
-    "⏰ Le RU ouvre a quel heure ?",
-    "📍 Où se trouve le RU le plus proche ?",
-    "🗓️ Quel est mon emploi du temps cette semaine ?",
-    "🚪 A quelle heure ferme le RU ce soir ?",
-    "💰 Combien il me reste sur ma carte IZLY ?",
-    "🏢 Quels RU sont ouverts maintenant ?"
+    "📅 Quels sont mes cours cette semaine ?",
+    "🍽️ Que mange-t-on à la cantine ce midi ?",
+    "📍 Quels sont les services les plus proches ?",
+    "🧑‍🏫 Quel est le contact de Robert Tomczak ?",
   ];
 
   // Couleurs pour le theme clair/sombre
@@ -71,15 +67,22 @@ const Chat = () => {
   const markdownStyles = {
     '.markdown-content': {
       whiteSpace: 'pre-wrap',
+      lineHeight: '1.2',
     },
     '.markdown-content p': {
-      marginBottom: '0.5rem',
+      marginBottom: '0.25rem',
     },
     '.markdown-content ul, .markdown-content ol': {
       paddingLeft: '1.5rem',
-      marginBottom: '0.5rem',
+      marginBottom: '0.25rem',
+      lineHeight: '1.2',
     },
     '.markdown-content li': {
+      marginBottom: '0.1rem',
+    },
+    '.markdown-content h1, .markdown-content h2, .markdown-content h3, .markdown-content h4': {
+      fontWeight: 'bold',
+      marginTop: '0.25rem',
       marginBottom: '0.25rem',
     },
     '.markdown-content strong': {
@@ -87,11 +90,6 @@ const Chat = () => {
     },
     '.markdown-content em': {
       fontStyle: 'italic',
-    },
-    '.markdown-content h1, .markdown-content h2, .markdown-content h3, .markdown-content h4': {
-      fontWeight: 'bold',
-      marginTop: '0.5rem',
-      marginBottom: '0.5rem',
     },
     '.markdown-content h1': {
       fontSize: '1.5rem',
@@ -124,18 +122,8 @@ const Chat = () => {
     },
   };
 
-  // Chargement des messages quand la conversation change
-  useEffect(() => {
-    if (activeConversation) {
-      loadMessages(activeConversation.id);
-      setTimeout(() => {
-        inputRef.current?.focus();
-      }, 100);
-    }
-  }, [activeConversation]);
-
   // Fonction pour charger les messages
-  const loadMessages = async (conversationId) => {
+  const loadMessages = useCallback(async (conversationId) => {
     try {
       setMessages([]); // Clear messages while loading
       const response = await fetch(`/api/conversations/${conversationId}/messages`);
@@ -155,7 +143,17 @@ const Chat = () => {
         isClosable: true,
       });
     }
-  };
+  }, [toast]);
+
+  // Chargement des messages quand la conversation change
+  useEffect(() => {
+    if (activeConversation) {
+      loadMessages(activeConversation.id);
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 100);
+    }
+  }, [activeConversation, loadMessages]);
 
   // Scroll automatique vers le bas
   const scrollToBottom = () => {
