@@ -7,7 +7,8 @@
     "server": "nodemon server/server.js",
     "client": "cd client && npm run dev",
     "dev": "concurrently \"npm run server\" \"npm run client\"",
-    "prep": "npm install && cd client && npm install"
+    "prep": "npm install && cd client && npm install",
+    "frontbuild": "cd client && npm run build"
   },
   "keywords": [],
   "author": "",
