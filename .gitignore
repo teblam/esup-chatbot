@@ -3,4 +3,5 @@
 server/data
 .DS_Store
 .vs_code
+.vscode
 server/data/database.db
