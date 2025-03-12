@@ -152,6 +152,39 @@ app.get('/api/admin/users', adminMiddleware, async (req, res) => {
     }
 });
 
+// Route pour le changement de mot de passe par l'utilisateur
+app.post('/api/change-password', authMiddleware, async (req, res) => {
+    try {
+        const { oldPassword, newPassword } = req.body;
+        
+        if (!oldPassword || !newPassword) {
+            return res.status(400).json({ error: 'Les anciens et nouveaux mots de passe sont requis' });
+        }
+        
+        // Vérifier l'ancien mot de passe
+        const userId = req.session.userId;
+        const user = await storage.getUser(userId);
+        
+        if (!user) {
+            return res.status(404).json({ error: 'Utilisateur non trouvé' });
+        }
+        
+        // Vérifier l'ancien mot de passe avec la fonction existante
+        const validPassword = await storage.verifyUser(user.username, oldPassword);
+        if (!validPassword) {
+            return res.status(400).json({ error: 'Ancien mot de passe incorrect' });
+        }
+        
+        // Mettre à jour le mot de passe
+        await storage.updateUserPassword(userId, newPassword);
+        
+        res.json({ message: 'Mot de passe modifié avec succès' });
+    } catch (error) {
+        console.error('Erreur changement mot de passe:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 app.delete('/api/admin/users/:id', adminMiddleware, async (req, res) => {
     try {
         const { id } = req.params;

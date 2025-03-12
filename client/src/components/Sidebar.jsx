@@ -64,6 +64,40 @@ const Sidebar = ({ isOpen, onClose }) => {
     };
   }, []);
 
+  // Écouter la création d'une nouvelle conversation lors de la connexion
+  useEffect(() => {
+    const handleNewConversationCreated = (event) => {
+      const newConversation = event.detail;
+      console.log('Événement newConversationCreated reçu:', newConversation);
+      
+      // Ajouter la nouvelle conversation à la liste
+      setConversations(prev => {
+        // Vérifier si la conversation existe déjà
+        const exists = prev.some(conv => conv.id === newConversation.id);
+        if (exists) {
+          console.log('Conversation déjà existante, mise à jour uniquement');
+          return prev.map(conv => 
+            conv.id === newConversation.id ? newConversation : conv
+          );
+        } else {
+          console.log('Ajout de la nouvelle conversation à la liste');
+          return [newConversation, ...prev];
+        }
+      });
+      
+      // L'activer automatiquement avec un léger délai pour s'assurer que le state est à jour
+      setTimeout(() => {
+        console.log('Activation de la nouvelle conversation:', newConversation.id);
+        setActiveConversation(newConversation);
+      }, 100);
+    };
+    
+    window.addEventListener('newConversationCreated', handleNewConversationCreated);
+    return () => {
+      window.removeEventListener('newConversationCreated', handleNewConversationCreated);
+    };
+  }, [setActiveConversation]);
+
   useEffect(() => {
     if (editingId && editInputRef.current) {
       editInputRef.current.focus();
@@ -72,18 +106,60 @@ const Sidebar = ({ isOpen, onClose }) => {
 
   const fetchConversations = async () => {
     try {
-      const response = await fetch('/api/conversations');
+      const response = await fetch('/api/conversations', {
+        headers: {
+          'Accept': 'application/json'
+        }
+      });
+      
+      // Vérifier le type de contenu de la réponse
+      const contentType = response.headers.get("content-type");
+      let data;
+      
+      if (contentType && contentType.indexOf("application/json") !== -1) {
+        data = await response.json();
+      } else {
+        console.error("Réponse non-JSON pour les conversations:", await response.text());
+        toast({
+          title: 'Erreur',
+          description: 'Format de réponse invalide',
+          status: 'error',
+          duration: 3000,
+          isClosable: true,
+        });
+        return;
+      }
+      
       if (response.ok) {
-        const data = await response.json();
         const sortedConversations = data.sort((a, b) => 
           new Date(b.created_at) - new Date(a.created_at)
         );
         setConversations(sortedConversations);
         
-        // Si pas de conversation active et qu'on en a, on sélectionne la première
+        // Récupérer l'ID de la dernière conversation depuis localStorage
+        const lastConversationId = localStorage.getItem('lastConversationId');
+        console.log('ID conversation from localStorage:', lastConversationId);
+        
+        // Si on a un ID dans le localStorage, chercher cette conversation
+        if (lastConversationId) {
+          const lastConversation = sortedConversations.find(conv => conv.id == lastConversationId);
+          if (lastConversation) {
+            console.log('Conversation trouvée dans la liste, activation:', lastConversation.id);
+            setActiveConversation(lastConversation);
+            // Supprimer l'ID après utilisation pour ne pas le réutiliser lors des chargements suivants
+            localStorage.removeItem('lastConversationId');
+            return;
+          }
+        }
+        
+        // Si pas de conversation spécifique à charger ou si elle n'a pas été trouvée, 
+        // on prend la plus récente si elle existe
         if (!activeConversation && sortedConversations.length > 0) {
+          console.log('Activation de la conversation la plus récente:', sortedConversations[0].id);
           setActiveConversation(sortedConversations[0]);
         }
+      } else {
+        throw new Error(data.error || 'Failed to fetch conversations');
       }
     } catch (error) {
       console.error('Error fetching conversations:', error);
@@ -102,19 +178,33 @@ const Sidebar = ({ isOpen, onClose }) => {
       const response = await fetch('/api/conversations', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
-        }
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+          title: 'Nouvelle conversation'
+        })
       });
       
+      // Vérifier le type de contenu de la réponse
+      const contentType = response.headers.get("content-type");
+      let data;
+      
+      if (contentType && contentType.indexOf("application/json") !== -1) {
+        data = await response.json();
+      } else {
+        console.error("Réponse non-JSON pour la création:", await response.text());
+        throw new Error('Format de réponse invalide');
+      }
+      
       if (response.ok) {
-        const newConversation = await response.json();
-        setConversations(prev => [newConversation, ...prev]);
-        setActiveConversation(newConversation);
+        setConversations(prev => [data, ...prev]);
+        setActiveConversation(data);
         if (window.innerWidth < 768) {
           onClose();
         }
       } else {
-        throw new Error('Failed to create conversation');
+        throw new Error(data.error || 'Failed to create conversation');
       }
     } catch (error) {
       console.error('Error creating conversation:', error);
@@ -164,26 +254,37 @@ const Sidebar = ({ isOpen, onClose }) => {
       const response = await fetch(`/api/conversations/${conversationId}`, {
         method: 'PATCH',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
         },
         body: JSON.stringify({
           title: editingTitle
         })
       });
 
+      // Vérifier le type de contenu de la réponse
+      const contentType = response.headers.get("content-type");
+      let data;
+      
+      if (contentType && contentType.indexOf("application/json") !== -1) {
+        data = await response.json();
+      } else {
+        console.error("Réponse non-JSON pour la modification:", await response.text());
+        throw new Error('Format de réponse invalide');
+      }
+
       if (response.ok) {
-        const updatedConversation = await response.json();
         setConversations(prev => prev.map(conv => 
           conv.id === conversationId 
-            ? { ...conv, title: updatedConversation.title }
+            ? { ...conv, title: data.title }
             : conv
         ));
         if (activeConversation?.id === conversationId) {
-          setActiveConversation(prev => ({ ...prev, title: updatedConversation.title }));
+          setActiveConversation(prev => ({ ...prev, title: data.title }));
         }
         cancelEditing();
       } else {
-        throw new Error('Failed to update title');
+        throw new Error(data.error || 'Failed to update title');
       }
     } catch (error) {
       toast({
@@ -199,7 +300,10 @@ const Sidebar = ({ isOpen, onClose }) => {
   const handleDelete = async (conversation) => {
     try {
       const response = await fetch(`/api/conversations/${conversation.id}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: {
+          'Accept': 'application/json'
+        }
       });
 
       if (response.ok) {
@@ -223,7 +327,14 @@ const Sidebar = ({ isOpen, onClose }) => {
           isClosable: true,
         });
       } else {
-        throw new Error('Failed to delete conversation');
+        // Essayer de lire une réponse JSON si disponible
+        const contentType = response.headers.get("content-type");
+        if (contentType && contentType.indexOf("application/json") !== -1) {
+          const data = await response.json();
+          throw new Error(data.error || 'Failed to delete conversation');
+        } else {
+          throw new Error('Failed to delete conversation');
+        }
       }
     } catch (error) {
       toast({

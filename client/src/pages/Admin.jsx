@@ -213,7 +213,7 @@ const Admin = () => {
                 <Tr key={user.id} _hover={{ bg: tableRowBgHover }}>
                   <Td>{user.username}</Td>
                   <Td>{user.uphf_username}</Td>
-                  <Td>{user.password_hash}</Td>
+                  <Td>{user.password_hash ? `${user.password_hash.substring(0, 15)}...` : ''}</Td>
                   <Td>{user.role}</Td>
                   <Td>{new Date(user.created_at).toLocaleDateString()}</Td>
                   <Td>
@@ -301,4 +301,4 @@ const Admin = () => {
   );
 };
 
-export default Admin; 
+export default Admin;

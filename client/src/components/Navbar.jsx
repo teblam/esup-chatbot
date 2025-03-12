@@ -8,22 +8,123 @@ import {
   MenuList,
   MenuItem,
   useColorModeValue,
-  Button
+  Button,
+  Modal,
+  ModalOverlay,
+  ModalContent,
+  ModalHeader,
+  ModalFooter,
+  ModalBody,
+  ModalCloseButton,
+  FormControl,
+  FormLabel,
+  Input,
+  useDisclosure,
+  useToast
 } from '@chakra-ui/react';
 import { HamburgerIcon } from '@chakra-ui/icons';
-import { FiUser, FiSettings } from 'react-icons/fi';
+import { FiUser, FiSettings, FiKey } from 'react-icons/fi';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import ThemeSwitch from './ThemeSwitch';
+import { useState } from 'react';
 
 const Navbar = ({ onOpen }) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const { isOpen, onOpen: openModal, onClose } = useDisclosure();
+  const [oldPassword, setOldPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const toast = useToast();
   
   const handleLogout = () => {
     localStorage.removeItem('token');
     logout();
     navigate('/login');
+  };
+
+  const handlePasswordChange = async () => {
+    // Validation
+    if (!oldPassword || !newPassword || !confirmPassword) {
+      toast({
+        title: "Erreur",
+        description: "Tous les champs sont requis",
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      toast({
+        title: "Erreur",
+        description: "Les nouveaux mots de passe ne correspondent pas",
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      console.log("Envoi de la demande de changement de mot de passe");
+      
+      // Simplifier la requête en utilisant le format exact attendu par le backend
+      const response = await fetch('/api/change-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          oldPassword,
+          newPassword,
+        }),
+      });
+      
+      // Vérifier d'abord le statut de la réponse
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Erreur lors du changement de mot de passe');
+      }
+      
+      // La réponse est OK, continuer
+      const data = await response.json();
+      console.log("Réponse:", data);
+
+      // Réinitialiser les champs
+      setOldPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      
+      // Fermer le modal
+      onClose();
+      
+      // Notification de succès
+      toast({
+        title: "Succès",
+        description: "Votre mot de passe a été modifié avec succès",
+        status: "success",
+        duration: 3000,
+        isClosable: true,
+      });
+      
+    } catch (error) {
+      console.error("Erreur de changement de mot de passe:", error);
+      toast({
+        title: "Erreur",
+        description: error.message,
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -61,17 +162,6 @@ const Navbar = ({ onOpen }) => {
         <Flex alignItems="center" gap={4}>
           <ThemeSwitch />
           
-          {user && user.role === 'admin' && (
-            <Button
-              leftIcon={<FiSettings />}
-              colorScheme="purple"
-              size="sm"
-              onClick={() => navigate('/admin')}
-            >
-              Administration
-            </Button>
-          )}
-          
           {user && (
             <Menu>
               <MenuButton
@@ -81,6 +171,21 @@ const Navbar = ({ onOpen }) => {
                 aria-label="Menu utilisateur"
               />
               <MenuList>
+                {user.role === 'admin' && (
+                  <MenuItem 
+                    icon={<FiSettings />}
+                    colorScheme="purple"
+                    onClick={() => navigate('/admin')}
+                  >
+                    Administration
+                  </MenuItem>
+                )}
+                <MenuItem 
+                  icon={<FiKey />} 
+                  onClick={openModal}
+                >
+                  Changer de mot de passe
+                </MenuItem>
                 <MenuItem onClick={handleLogout}>
                   Se déconnecter
                 </MenuItem>
@@ -89,6 +194,55 @@ const Navbar = ({ onOpen }) => {
           )}
         </Flex>
       </Flex>
+
+      {/* Modal pour changer de mot de passe */}
+      <Modal isOpen={isOpen} onClose={onClose}>
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Changer de mot de passe</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody pb={6}>
+            <FormControl>
+              <FormLabel>Mot de passe actuel</FormLabel>
+              <Input 
+                type="password" 
+                value={oldPassword}
+                onChange={(e) => setOldPassword(e.target.value)}
+              />
+            </FormControl>
+
+            <FormControl mt={4}>
+              <FormLabel>Nouveau mot de passe</FormLabel>
+              <Input 
+                type="password" 
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+              />
+            </FormControl>
+
+            <FormControl mt={4}>
+              <FormLabel>Confirmez le nouveau mot de passe</FormLabel>
+              <Input 
+                type="password" 
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+              />
+            </FormControl>
+          </ModalBody>
+
+          <ModalFooter>
+            <Button 
+              colorScheme="brand" 
+              mr={3} 
+              onClick={handlePasswordChange}
+              isLoading={isSubmitting}
+            >
+              Enregistrer
+            </Button>
+            <Button onClick={onClose}>Annuler</Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </Box>
   );
 };

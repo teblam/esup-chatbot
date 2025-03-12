@@ -13,13 +13,8 @@ import {
 import { ArrowUpIcon, ChevronUpIcon } from '@chakra-ui/icons';
 import { useState, useEffect, useRef, useCallback, useContext } from 'react';
 import { useConversation } from '../contexts/ConversationContext';
-import { motion } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import React from 'react';
-
-// Wrapper de motion pour animation
-const MotionBox = motion(Box);
-const MotionFlex = motion(Flex);
 
 // Composant de saisie isolé
 const ChatInput = React.memo(({ onSubmit, isLoading, inputBgColor, placeholderColor, inputBorderColor, inputHoverBorderColor, inputFocusBorderColor, inputFocusBoxShadow }) => {
@@ -61,18 +56,13 @@ const ChatInput = React.memo(({ onSubmit, isLoading, inputBgColor, placeholderCo
             boxShadow: inputFocusBoxShadow
           }}
         />
-        <MotionBox
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-        >
-          <IconButton
-            type="submit"
-            icon={<ArrowUpIcon />}
-            isLoading={isLoading}
-            aria-label="Envoyer"
-            colorScheme="brand"
-          />
-        </MotionBox>
+        <IconButton
+          type="submit"
+          icon={<ArrowUpIcon />}
+          isLoading={isLoading}
+          aria-label="Envoyer"
+          colorScheme="brand"
+        />
       </Flex>
     </form>
   );
@@ -87,13 +77,11 @@ const Chat = () => {
   const [messages, setMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showScrollTop, setShowScrollTop] = useState(false);
-  const [userHasScrolled, setUserHasScrolled] = useState(false);
   const [scrollPosition, setScrollPosition] = useState(0);
   
   // Refs
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
-  const isAutoScrollingRef = useRef(false);
   
   // Liste des messages suggérés
   const suggestions = [
@@ -213,17 +201,31 @@ const Chat = () => {
     try {
       // Ajouter un indicateur de chargement pour éviter l'écran noir
       setIsLoading(true);
-      const response = await fetch(`/api/conversations/${conversationId}/messages`);
+      const response = await fetch(`/api/conversations/${conversationId}/messages`, {
+        headers: {
+          'Accept': 'application/json'
+        }
+      });
+      
+      // Vérifier le type de contenu de la réponse
+      const contentType = response.headers.get("content-type");
+      let data;
+      
+      if (contentType && contentType.indexOf("application/json") !== -1) {
+        data = await response.json();
+      } else {
+        console.error("Réponse non-JSON pour les messages:", await response.text());
+        throw new Error('Format de réponse invalide');
+      }
       
       if (response.ok) {
-        const data = await response.json();
         // Utiliser une transition douce pour éviter les flashs
         requestAnimationFrame(() => {
           setMessages(data);
           setIsLoading(false);
         });
       } else {
-        throw new Error('Failed to load messages');
+        throw new Error(data.error || 'Failed to load messages');
       }
     } catch (error) {
       console.error('Error loading messages:', error);
@@ -238,35 +240,20 @@ const Chat = () => {
     }
   }, [toast]);
 
-  // Scroll automatique vers le bas avec option de préserver la position
-  const scrollToBottom = useCallback((force = false) => {
-    if (messagesEndRef.current && (force || !userHasScrolled)) {
-      messagesEndRef.current.scrollIntoView({ 
-        behavior: 'smooth', 
-        block: 'end' 
-      });
+  // Défilement simple vers le bas
+  const scrollToBottom = () => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView();
     }
-  }, [userHasScrolled]);
+  };
 
-  // Vérifier quand afficher le bouton de remontée et suivre la position de défilement
+  // Vérifier quand afficher le bouton de remontée
   const handleScroll = useCallback(() => {
-    if (isAutoScrollingRef.current) return; // Ignorer les événements pendant un défilement automatique
-    
     if (messagesContainerRef.current) {
-      const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
+      const { scrollTop } = messagesContainerRef.current;
       
       // Sauvegarder la position actuelle
       setScrollPosition(scrollTop);
-      
-      // Détecter si l'utilisateur est près du bas (moins de 100px du bas)
-      const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
-      
-      // Mettre à jour le statut de défilement seulement si l'utilisateur a défilé significativement
-      if (!isNearBottom && scrollTop > 50) {
-        setUserHasScrolled(true);
-      } else if (isNearBottom) {
-        setUserHasScrolled(false);
-      }
       
       // Afficher le bouton de remontée si on a défilé vers le bas
       setShowScrollTop(scrollTop > 300);
@@ -276,14 +263,9 @@ const Chat = () => {
   // Fonction pour remonter en haut
   const scrollToTop = useCallback(() => {
     if (messagesContainerRef.current) {
-      isAutoScrollingRef.current = true;
       messagesContainerRef.current.scrollTo({
         top: 0,
-        behavior: 'smooth'
       });
-      setTimeout(() => {
-        isAutoScrollingRef.current = false;
-      }, 500);
     }
   }, []);
 
@@ -321,21 +303,19 @@ const Chat = () => {
                                  lastMessage.role === 'assistant' && 
                                  !lastMessage.id?.toString().includes('thinking-');
     
-    if (isNewAssistantMessage && userHasScrolled) {
+    if (isNewAssistantMessage && scrollPosition > 0) {
       // Maintenir la position actuelle, ne pas scroller
       if (messagesContainerRef.current && scrollPosition > 0) {
         messagesContainerRef.current.scrollTop = scrollPosition;
       }
-    } else if (!userHasScrolled || 
+    } else if (!scrollPosition || 
               (lastMessage && lastMessage.role === 'user' && lastMessage.id?.toString().includes('temp-'))) {
       // C'est un nouveau message utilisateur ou l'utilisateur n'a pas défilé - scroller en bas
-      isAutoScrollingRef.current = true;
       setTimeout(() => {
-        scrollToBottom(true);
-        isAutoScrollingRef.current = false;
+        scrollToBottom();
       }, 100);
     }
-  }, [messages, scrollToBottom, scrollPosition, userHasScrolled]);
+  }, [messages, scrollToBottom, scrollPosition]);
 
   // Envoi du message
   const handleSubmit = async (userMessage) => {
@@ -351,11 +331,7 @@ const Chat = () => {
       created_at: new Date().toISOString()
     };
     
-    // Ajouter le message utilisateur et désactiver le défilement manuel pour cet ajout
-    setUserHasScrolled(false);
-    setMessages(prev => [...prev, tempUserMessage]);
-    
-    // Ajouter un message temporaire de réflexion
+    // Message temporaire de réflexion
     const thinkingMessage = {
       id: 'thinking-' + Date.now(),
       role: 'assistant',
@@ -364,10 +340,16 @@ const Chat = () => {
       created_at: new Date().toISOString()
     };
     
-    // Ajouter après un court délai pour permettre le défilement après le message utilisateur
+    // Ajouter les deux messages en une seule opération
+    const messagesWithUserAndThinking = [...messages, tempUserMessage, thinkingMessage];
+    setMessages(messagesWithUserAndThinking);
+    
+    // Défilement simple et direct sans animation
     setTimeout(() => {
-      setMessages(prev => [...prev, thinkingMessage]);
-    }, 300);
+      if (messagesEndRef.current) {
+        messagesEndRef.current.scrollIntoView();
+      }
+    }, 10);
     
     try {
       const response = await fetch('/api/chat', {
@@ -381,24 +363,30 @@ const Chat = () => {
         }),
       });
 
-      const data = await response.json();
-      
       if (!response.ok) {
+        const data = await response.json();
         throw new Error(data.error || 'Failed to get AI response');
       }
       
+      const data = await response.json();
+      
       if (data.messages) {
-        // Supprimer les messages temporaires et ajouter les messages réels
-        setMessages(prev => {
-          const withoutTemp = prev.filter(msg => 
-            msg.id !== tempUserMessage.id && 
-            msg.id !== thinkingMessage.id
-          );
-          // Remplacer sans forcer de défilement
-          return [...withoutTemp, ...data.messages];
-        });
+        // Supprimer les messages temporaires et ajouter les définitifs en une seule opération
+        const withoutTemp = messages.filter(msg => 
+          msg.id !== tempUserMessage.id && 
+          msg.id !== thinkingMessage.id
+        );
+        
+        const finalMessages = [...withoutTemp, ...data.messages];
+        setMessages(finalMessages);
+        
+        // Défilement simple sans animation
+        if (messagesEndRef.current) {
+          messagesEndRef.current.scrollIntoView();
+        }
       }
 
+      // Mise à jour de la conversation
       if (data.conversation) {
         setActiveConversation(data.conversation);
         window.dispatchEvent(new CustomEvent('conversationUpdated', { 
@@ -410,10 +398,13 @@ const Chat = () => {
       }
 
     } catch (error) {
-      setMessages(prev => prev.filter(msg => 
+      // En cas d'erreur, revenir à l'état initial
+      const messagesWithoutTemp = messages.filter(msg => 
         msg.id !== tempUserMessage.id && 
         msg.id !== thinkingMessage.id
-      ));
+      );
+      setMessages(messagesWithoutTemp);
+      
       console.error('Error:', error);
       toast({
         title: 'Erreur',
@@ -430,74 +421,15 @@ const Chat = () => {
   // Composant pour afficher un message avec animation
   const MessageBubble = React.memo(({ message, index }) => {
     const isUser = message.role === 'user';
-    const isNew = message.id && message.id.toString().includes('temp-');
     const isThinking = message.thinking;
     
     // Extraire les valeurs de useColorModeValue en dehors de la condition
     const thinkingBgColor = useColorModeValue('gray.100', 'gray.700');
     
-    // Animation pour les nouveaux messages
-    const fadeInVariants = {
-      hidden: { 
-        opacity: 0, 
-        y: 10,
-        scale: 0.95
-      },
-      visible: { 
-        opacity: 1, 
-        y: 0,
-        scale: 1,
-        transition: { 
-          type: "spring", 
-          damping: 15,
-          stiffness: 300,
-          delay: 0.05 * index % 5 // Légère cascade pour les anciens messages
-        } 
-      },
-      sending: {
-        opacity: [1, 0.7, 1],
-        scale: [1, 0.97, 1],
-        transition: { 
-          repeat: isNew ? Infinity : 0,
-          duration: 1.5
-        }
-      }
-    };
-    
-    // Animation spéciale pour les messages utilisateur
-    const userMessageVariants = {
-      initial: { x: 20, opacity: 0 },
-      animate: { 
-        x: 0, 
-        opacity: 1,
-        transition: { 
-          type: "spring", 
-          damping: 12,
-          stiffness: 200,
-        }
-      }
-    };
-    
-    // Animation spéciale pour les messages assistant
-    const assistantMessageVariants = {
-      initial: { x: -20, opacity: 0 },
-      animate: { 
-        x: 0, 
-        opacity: 1,
-        transition: { 
-          type: "spring", 
-          damping: 12,
-          stiffness: 200,
-        }
-      }
-    };
-    
     // Animation spéciale pour le message de réflexion
     if (isThinking) {
       return (
-        <MotionFlex
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
+        <Flex
           maxW={{ base: "90%", md: "70%" }}
           alignSelf="flex-start"
           bg={thinkingBgColor}
@@ -535,19 +467,17 @@ const Chat = () => {
               }
             `}</style>
           </Text>
-        </MotionFlex>
+        </Flex>
       );
     }
     
     return (
-      <MotionBox
+      <Box
         maxW="80%"
         alignSelf={isUser ? 'flex-end' : 'flex-start'}
-        animate={isNew ? "sending" : "visible"}
-        initial="hidden"
-        variants={fadeInVariants}
+        key={message.id} // Ajouter une clé stable pour éviter les re-rendus inutiles
       >
-        <MotionBox
+        <Box
           bg={isUser ? userBgColor : botBgColor}
           color={isUser ? userTextColor : botTextColor}
           px={4}
@@ -555,17 +485,17 @@ const Chat = () => {
           borderRadius="lg"
           my={1}
           boxShadow="sm"
-          variants={isUser ? userMessageVariants : assistantMessageVariants}
-          initial="initial"
-          animate="animate"
-          whileHover={{ scale: 1.01 }}
         >
           <Box className="markdown-content" sx={updatedMarkdownStyles}>
             <ReactMarkdown>{message.content}</ReactMarkdown>
           </Box>
-        </MotionBox>
-      </MotionBox>
+        </Box>
+      </Box>
     );
+  }, (prevProps, nextProps) => {
+    // Optimisation pour éviter les re-rendus inutiles
+    return prevProps.message.id === nextProps.message.id && 
+           prevProps.message.content === nextProps.message.content;
   });
 
   // Page de chargement
@@ -751,7 +681,24 @@ const Chat = () => {
                         content: suggestion,
                         created_at: new Date().toISOString()
                       };
-                      setMessages(prev => [...prev, tempUserMessage]);
+                      
+                      // Message de réflexion
+                      const thinkingMessage = {
+                        id: 'thinking-' + Date.now(),
+                        role: 'assistant',
+                        content: '...',
+                        thinking: true,
+                        created_at: new Date().toISOString()
+                      };
+                      
+                      // Ajouter les deux messages en une seule opération
+                      const messagesWithUserAndThinking = [...messages, tempUserMessage, thinkingMessage];
+                      setMessages(messagesWithUserAndThinking);
+                      
+                      // Défilement simple
+                      if (messagesEndRef.current) {
+                        messagesEndRef.current.scrollIntoView();
+                      }
                       
                       try {
                         const response = await fetch('/api/chat', {
@@ -765,17 +712,26 @@ const Chat = () => {
                           }),
                         });
 
-                        const data = await response.json();
-                        
                         if (!response.ok) {
+                          const data = await response.json();
                           throw new Error(data.error || 'Failed to get AI response');
                         }
                         
+                        const data = await response.json();
+                        
                         if (data.messages) {
-                          setMessages(prev => {
-                            const withoutTemp = prev.filter(msg => msg.id !== tempUserMessage.id);
-                            return [...withoutTemp, ...data.messages];
-                          });
+                          // Mise à jour unique de l'état
+                          const withoutTemp = messages.filter(msg => 
+                            msg.id !== tempUserMessage.id && 
+                            msg.id !== thinkingMessage.id
+                          );
+                          const finalMessages = [...withoutTemp, ...data.messages];
+                          setMessages(finalMessages);
+                          
+                          // Défilement simple
+                          if (messagesEndRef.current) {
+                            messagesEndRef.current.scrollIntoView();
+                          }
                         }
 
                         if (data.conversation) {
@@ -788,7 +744,13 @@ const Chat = () => {
                           }));
                         }
                       } catch (error) {
-                        setMessages(prev => prev.filter(msg => msg.id !== tempUserMessage.id));
+                        // Revenir à l'état initial en cas d'erreur
+                        const messagesWithoutTemp = messages.filter(msg => 
+                          msg.id !== tempUserMessage.id && 
+                          msg.id !== thinkingMessage.id
+                        );
+                        setMessages(messagesWithoutTemp);
+                        
                         toast({
                           title: 'Erreur',
                           description: error.message || 'Une erreur est survenue',
@@ -810,7 +772,7 @@ const Chat = () => {
         </Box>
       )}
 
-      <MotionFlex 
+      <Flex 
         p={4} 
         bg={chatBgColor}
         width="100%"
@@ -818,9 +780,6 @@ const Chat = () => {
         borderColor={borderColor}
         boxShadow="0 -2px 10px rgba(0,0,0,0.05)"
         position="relative"
-        initial={{ y: 10, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ delay: 0.3 }}
       >
         <ChatInput
           onSubmit={handleSubmit}
@@ -832,7 +791,7 @@ const Chat = () => {
           inputFocusBorderColor={inputFocusBorderColor}
           inputFocusBoxShadow={inputFocusBoxShadow}
         />
-      </MotionFlex>
+      </Flex>
     </Flex>
   );
 };
