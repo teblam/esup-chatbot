@@ -8,9 +8,10 @@ import {
   useColorModeValue,
   useToast,
   Button,
+  Tooltip
 } from '@chakra-ui/react';
-import { ArrowUpIcon } from '@chakra-ui/icons';
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { ArrowUpIcon, ChevronUpIcon } from '@chakra-ui/icons';
+import { useState, useEffect, useRef, useCallback, useContext } from 'react';
 import { useConversation } from '../contexts/ConversationContext';
 import { motion } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
@@ -78,14 +79,23 @@ const ChatInput = React.memo(({ onSubmit, isLoading, inputBgColor, placeholderCo
 });
 
 const Chat = () => {
-  // Etats pour gerer les messages et le chargement
+  // Récupérer tous les contextes nécessaires d'abord pour maintenir l'ordre des hooks
+  const { activeConversation, setActiveConversation } = useConversation();
+  const toast = useToast();
+
+  // Etats pour gérer les messages et le chargement
   const [messages, setMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [showScrollTop, setShowScrollTop] = useState(false);
+  const [userHasScrolled, setUserHasScrolled] = useState(false);
+  const [scrollPosition, setScrollPosition] = useState(0);
+  
+  // Refs
   const messagesEndRef = useRef(null);
-  const toast = useToast();
-  const { activeConversation, setActiveConversation } = useConversation();
-
-  // Liste des messages suggeres
+  const messagesContainerRef = useRef(null);
+  const isAutoScrollingRef = useRef(false);
+  
+  // Liste des messages suggérés
   const suggestions = [
     "📅 Quels sont mes cours cette semaine ?",
     "🍽️ Que mange-t-on à la cantine ce midi ?",
@@ -95,21 +105,16 @@ const Chat = () => {
 
   // Couleurs pour le theme clair/sombre
   const borderColor = useColorModeValue('gray.200', 'gray.700');
-  const mainBgColor = useColorModeValue('gray.50', 'gray.900'); // Fond principal plus foncé
-  const chatBgColor = useColorModeValue('white', 'gray.800'); // Zone de chat plus claire
+  const mainBgColor = useColorModeValue('gray.50', 'gray.900');
+  const chatBgColor = useColorModeValue('white', 'gray.800');
   const inputBgColor = useColorModeValue('white', 'gray.700');
-  // Nouvelles couleurs pour les suggestions
   const suggestionBgColor = useColorModeValue('gray.100', 'gray.700');
   const suggestionTextColor = useColorModeValue('gray.700', 'gray.100');
   const suggestionHoverBgColor = useColorModeValue('gray.200', 'gray.600');
-
-  // Couleurs des bulles de messages
   const userBgColor = useColorModeValue('brand.500', 'brand.400');
   const botBgColor = useColorModeValue('gray.100', 'gray.600');
   const userTextColor = useColorModeValue('white', 'white');
   const botTextColor = useColorModeValue('gray.800', 'gray.100');
-  
-  // Couleurs pour les inputs et placeholders
   const placeholderColor = useColorModeValue('gray.500', 'gray.400');
   const inputBorderColor = useColorModeValue('gray.200', 'gray.600');
   const inputHoverBorderColor = useColorModeValue('gray.300', 'gray.500');
@@ -118,6 +123,9 @@ const Chat = () => {
     '0 0 0 1px var(--chakra-colors-brand-500)',
     '0 0 0 1px var(--chakra-colors-brand-400)'
   );
+  const scrollTrackBg = useColorModeValue('rgba(0,0,0,0.05)', 'rgba(255,255,255,0.05)');
+  const scrollThumbBg = useColorModeValue('rgba(0,0,0,0.2)', 'rgba(255,255,255,0.2)');
+  const scrollThumbHoverBg = useColorModeValue('rgba(0,0,0,0.3)', 'rgba(255,255,255,0.3)');
 
   // Styles pour les éléments markdown
   const markdownStyles = {
@@ -178,14 +186,42 @@ const Chat = () => {
     },
   };
 
+  // Extraire toutes les valeurs pour le style de l'élément markdown
+  const markdownCodeBg = useColorModeValue('gray.100', 'gray.700');
+  const markdownPreBg = useColorModeValue('gray.100', 'gray.700');
+  const markdownBlockquoteBorderColor = useColorModeValue('gray.300', 'gray.500');
+  
+  // Mise à jour des styles markdown avec les variables
+  const updatedMarkdownStyles = {
+    ...markdownStyles,
+    '.markdown-content code': {
+      ...markdownStyles['.markdown-content code'],
+      backgroundColor: markdownCodeBg,
+    },
+    '.markdown-content pre': {
+      ...markdownStyles['.markdown-content pre'],
+      backgroundColor: markdownPreBg,
+    },
+    '.markdown-content blockquote': {
+      ...markdownStyles['.markdown-content blockquote'],
+      borderLeftColor: markdownBlockquoteBorderColor,
+    },
+  };
+
   // Fonction pour charger les messages
   const loadMessages = useCallback(async (conversationId) => {
     try {
-      setMessages([]); // Clear messages while loading
+      // Ajouter un indicateur de chargement pour éviter l'écran noir
+      setIsLoading(true);
       const response = await fetch(`/api/conversations/${conversationId}/messages`);
+      
       if (response.ok) {
         const data = await response.json();
-        setMessages(data);
+        // Utiliser une transition douce pour éviter les flashs
+        requestAnimationFrame(() => {
+          setMessages(data);
+          setIsLoading(false);
+        });
       } else {
         throw new Error('Failed to load messages');
       }
@@ -198,24 +234,108 @@ const Chat = () => {
         duration: 3000,
         isClosable: true,
       });
+      setIsLoading(false);
     }
   }, [toast]);
+
+  // Scroll automatique vers le bas avec option de préserver la position
+  const scrollToBottom = useCallback((force = false) => {
+    if (messagesEndRef.current && (force || !userHasScrolled)) {
+      messagesEndRef.current.scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'end' 
+      });
+    }
+  }, [userHasScrolled]);
+
+  // Vérifier quand afficher le bouton de remontée et suivre la position de défilement
+  const handleScroll = useCallback(() => {
+    if (isAutoScrollingRef.current) return; // Ignorer les événements pendant un défilement automatique
+    
+    if (messagesContainerRef.current) {
+      const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
+      
+      // Sauvegarder la position actuelle
+      setScrollPosition(scrollTop);
+      
+      // Détecter si l'utilisateur est près du bas (moins de 100px du bas)
+      const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
+      
+      // Mettre à jour le statut de défilement seulement si l'utilisateur a défilé significativement
+      if (!isNearBottom && scrollTop > 50) {
+        setUserHasScrolled(true);
+      } else if (isNearBottom) {
+        setUserHasScrolled(false);
+      }
+      
+      // Afficher le bouton de remontée si on a défilé vers le bas
+      setShowScrollTop(scrollTop > 300);
+    }
+  }, []);
+
+  // Fonction pour remonter en haut
+  const scrollToTop = useCallback(() => {
+    if (messagesContainerRef.current) {
+      isAutoScrollingRef.current = true;
+      messagesContainerRef.current.scrollTo({
+        top: 0,
+        behavior: 'smooth'
+      });
+      setTimeout(() => {
+        isAutoScrollingRef.current = false;
+      }, 500);
+    }
+  }, []);
 
   // Chargement des messages quand la conversation change
   useEffect(() => {
     if (activeConversation) {
+      // Vider les messages seulement après que les nouveaux soient chargés
       loadMessages(activeConversation.id);
     }
   }, [activeConversation, loadMessages]);
 
-  // Scroll automatique vers le bas
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
+  // S'assurer que le gestionnaire d'événements de défilement est correctement attaché/détaché
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+    const messagesContainer = messagesContainerRef.current;
+    if (messagesContainer) {
+      messagesContainer.addEventListener('scroll', handleScroll);
+      return () => {
+        messagesContainer.removeEventListener('scroll', handleScroll);
+      };
+    }
+  }, [handleScroll]);
+
+  // Gestion de la position de défilement lors de l'ajout de nouveaux messages
+  useEffect(() => {
+    // Ne rien faire s'il n'y a pas de messages
+    if (messages.length === 0) return;
+    
+    // Ne déclenche pas d'auto-scroll si un message de réflexion est en cours
+    const hasThinkingMessage = messages.some(m => m.thinking);
+    if (hasThinkingMessage) return;
+
+    // Si un nouveau message de l'assistant apparaît et que l'utilisateur avait défilé vers le haut
+    const lastMessage = messages[messages.length - 1];
+    const isNewAssistantMessage = lastMessage && 
+                                 lastMessage.role === 'assistant' && 
+                                 !lastMessage.id?.toString().includes('thinking-');
+    
+    if (isNewAssistantMessage && userHasScrolled) {
+      // Maintenir la position actuelle, ne pas scroller
+      if (messagesContainerRef.current && scrollPosition > 0) {
+        messagesContainerRef.current.scrollTop = scrollPosition;
+      }
+    } else if (!userHasScrolled || 
+              (lastMessage && lastMessage.role === 'user' && lastMessage.id?.toString().includes('temp-'))) {
+      // C'est un nouveau message utilisateur ou l'utilisateur n'a pas défilé - scroller en bas
+      isAutoScrollingRef.current = true;
+      setTimeout(() => {
+        scrollToBottom(true);
+        isAutoScrollingRef.current = false;
+      }, 100);
+    }
+  }, [messages, scrollToBottom, scrollPosition, userHasScrolled]);
 
   // Envoi du message
   const handleSubmit = async (userMessage) => {
@@ -223,14 +343,31 @@ const Chat = () => {
 
     setIsLoading(true);
 
-    // Message temporaire
+    // Message temporaire de l'utilisateur
     const tempUserMessage = {
       id: 'temp-' + Date.now(),
       role: 'user',
       content: userMessage,
       created_at: new Date().toISOString()
     };
+    
+    // Ajouter le message utilisateur et désactiver le défilement manuel pour cet ajout
+    setUserHasScrolled(false);
     setMessages(prev => [...prev, tempUserMessage]);
+    
+    // Ajouter un message temporaire de réflexion
+    const thinkingMessage = {
+      id: 'thinking-' + Date.now(),
+      role: 'assistant',
+      content: '...',
+      thinking: true,
+      created_at: new Date().toISOString()
+    };
+    
+    // Ajouter après un court délai pour permettre le défilement après le message utilisateur
+    setTimeout(() => {
+      setMessages(prev => [...prev, thinkingMessage]);
+    }, 300);
     
     try {
       const response = await fetch('/api/chat', {
@@ -249,12 +386,15 @@ const Chat = () => {
       if (!response.ok) {
         throw new Error(data.error || 'Failed to get AI response');
       }
-
-      console.log('Response from API:', data);
       
       if (data.messages) {
+        // Supprimer les messages temporaires et ajouter les messages réels
         setMessages(prev => {
-          const withoutTemp = prev.filter(msg => msg.id !== tempUserMessage.id);
+          const withoutTemp = prev.filter(msg => 
+            msg.id !== tempUserMessage.id && 
+            msg.id !== thinkingMessage.id
+          );
+          // Remplacer sans forcer de défilement
           return [...withoutTemp, ...data.messages];
         });
       }
@@ -270,7 +410,10 @@ const Chat = () => {
       }
 
     } catch (error) {
-      setMessages(prev => prev.filter(msg => msg.id !== tempUserMessage.id));
+      setMessages(prev => prev.filter(msg => 
+        msg.id !== tempUserMessage.id && 
+        msg.id !== thinkingMessage.id
+      ));
       console.error('Error:', error);
       toast({
         title: 'Erreur',
@@ -288,6 +431,10 @@ const Chat = () => {
   const MessageBubble = React.memo(({ message, index }) => {
     const isUser = message.role === 'user';
     const isNew = message.id && message.id.toString().includes('temp-');
+    const isThinking = message.thinking;
+    
+    // Extraire les valeurs de useColorModeValue en dehors de la condition
+    const thinkingBgColor = useColorModeValue('gray.100', 'gray.700');
     
     // Animation pour les nouveaux messages
     const fadeInVariants = {
@@ -345,6 +492,53 @@ const Chat = () => {
       }
     };
     
+    // Animation spéciale pour le message de réflexion
+    if (isThinking) {
+      return (
+        <MotionFlex
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          maxW={{ base: "90%", md: "70%" }}
+          alignSelf="flex-start"
+          bg={thinkingBgColor}
+          p={3}
+          borderRadius="lg"
+          mb={3}
+        >
+          <Text fontSize="md" position="relative">
+            <Box className="thinking-dots">
+              <Text as="span" className="dot">.</Text>
+              <Text as="span" className="dot">.</Text>
+              <Text as="span" className="dot">.</Text>
+            </Box>
+            <style jsx="true">{`
+              .thinking-dots {
+                display: inline-block;
+              }
+              .dot {
+                animation: wave 1.3s linear infinite;
+                display: inline-block;
+              }
+              .dot:nth-child(2) {
+                animation-delay: -1.1s;
+              }
+              .dot:nth-child(3) {
+                animation-delay: -0.9s;
+              }
+              @keyframes wave {
+                0%, 60%, 100% {
+                  transform: initial;
+                }
+                30% {
+                  transform: translateY(-5px);
+                }
+              }
+            `}</style>
+          </Text>
+        </MotionFlex>
+      );
+    }
+    
     return (
       <MotionBox
         maxW="80%"
@@ -366,7 +560,7 @@ const Chat = () => {
           animate="animate"
           whileHover={{ scale: 1.01 }}
         >
-          <Box className="markdown-content">
+          <Box className="markdown-content" sx={updatedMarkdownStyles}>
             <ReactMarkdown>{message.content}</ReactMarkdown>
           </Box>
         </MotionBox>
@@ -376,18 +570,64 @@ const Chat = () => {
 
   // Page de chargement
   if (!activeConversation) {
-    return <Box p={4} bg={mainBgColor}>Chargement...</Box>;
+    return (
+      <Flex 
+        justifyContent="center" 
+        alignItems="center" 
+        h="calc(100vh - 64px)" 
+        bg={mainBgColor}
+      >
+        <Box textAlign="center" p={8}>
+          <Text fontSize="lg">Chargement de vos conversations...</Text>
+        </Box>
+      </Flex>
+    );
   }
 
   // Structure principale du chat
   return (
     <Flex direction="column" h="calc(100vh - 64px)" position="relative" bg={mainBgColor}>
-      <Box flex="1" overflowY="auto" position="relative" bg={chatBgColor} sx={markdownStyles}>
+      <Box
+        ref={messagesContainerRef}
+        flex="1"
+        overflowY="auto"
+        bg={chatBgColor}
+        p={4}
+        borderWidth="1px"
+        borderColor={borderColor}
+        borderRadius="md"
+        position="relative"
+        sx={{
+          '&::-webkit-scrollbar': {
+            width: '8px',
+          },
+          '&::-webkit-scrollbar-track': {
+            background: scrollTrackBg,
+            borderRadius: '8px',
+          },
+          '&::-webkit-scrollbar-thumb': {
+            background: scrollThumbBg,
+            borderRadius: '8px',
+            '&:hover': {
+              background: scrollThumbHoverBg,
+            },
+          },
+          // Optimiser le rendu avec les propriétés en camelCase au lieu de kebab-case
+          willChange: 'auto',
+          backfaceVisibility: 'hidden',
+          perspective: '1000px',
+          transform: 'translateZ(0)',
+          // Empêcher les flashs noirs sur Safari/Chrome
+          backgroundAttachment: 'local'
+        }}
+      >
         <VStack
           spacing={4}
           p={4}
           pb="20px"
           alignItems="stretch"
+          minH="100%"
+          w="100%"
         >
           {messages.map((message, index) => (
             <MessageBubble key={message.id || index} message={message} index={index} />
@@ -395,6 +635,31 @@ const Chat = () => {
           <div ref={messagesEndRef} />
         </VStack>
       </Box>
+      
+      {/* Bouton pour remonter en haut - maintenant en dehors du Box pour éviter les problèmes de rendu */}
+      {showScrollTop && (
+        <Box
+          position="fixed" 
+          zIndex={9999}
+          bottom="120px"
+          right="30px"
+          pointerEvents="auto"
+        >
+          <IconButton
+            icon={<ChevronUpIcon boxSize="6" />}
+            borderRadius="full"
+            boxShadow="lg"
+            colorScheme="blue"
+            size="lg"
+            onClick={scrollToTop}
+            opacity={0.9}
+            _hover={{ opacity: 1, transform: 'scale(1.1)' }}
+            _active={{ transform: 'scale(0.95)' }}
+            aria-label="Remonter en haut"
+            transition="all 0.2s"
+          />
+        </Box>
+      )}
 
       {messages.length === 0 && (
         <Box 

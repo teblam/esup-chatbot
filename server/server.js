@@ -55,10 +55,39 @@ const authMiddleware = async (req, res, next) => {
     next();
 };
 
+// Middleware d'administration - vérifie si l'utilisateur est admin
+const adminMiddleware = async (req, res, next) => {
+    if (!req.session.userId) {
+        return res.status(401).json({ error: 'Non authentifié' });
+    }
+    
+    try {
+        const user = await storage.getUser(req.session.userId);
+        if (!user || user.role !== 'admin') {
+            return res.status(403).json({ error: 'Accès refusé - Droits administrateur requis' });
+        }
+        next();
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
 // Routes d'authentification
 app.post('/api/register', async (req, res) => {
     try {
         const { username, password, uphfUsername, uphfPassword, preferredLanguage, preferredRestaurant } = req.body;
+        
+        // Vérifier que les identifiants UPHF sont valides
+        try {
+            const uphfUser = await login("https://appmob.uphf.fr/backend", uphfUsername, uphfPassword);
+            if (!uphfUser) {
+                return res.status(401).json({ error: 'Identifiants UPHF invalides' });
+            }
+        } catch (error) {
+            return res.status(401).json({ error: 'Identifiants UPHF invalides' });
+        }
+        
+        // Créer l'utilisateur
         const user = await storage.createUser({
             username,
             password,
@@ -67,7 +96,12 @@ app.post('/api/register', async (req, res) => {
             preferredLanguage,
             preferredRestaurant
         });
-        res.json({ message: 'Utilisateur créé avec succès' });
+        
+        // Créer automatiquement une première conversation pour l'utilisateur
+        const conversation = await storage.createConversation(user.id);
+        await openaiService.initierConversation(user.id, storage);
+        
+        res.json({ message: 'Utilisateur créé avec succès', user, conversationId: conversation.id });
     } catch (error) {
         res.status(400).json({ error: error.message });
     }
@@ -103,6 +137,60 @@ app.get('/api/me', async (req, res) => {
             return res.status(404).json({ error: 'Utilisateur non trouvé' });
         }
         res.json(user);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Routes d'administration
+app.get('/api/admin/users', adminMiddleware, async (req, res) => {
+    try {
+        const users = await storage.getAllUsers();
+        res.json(users);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.delete('/api/admin/users/:id', adminMiddleware, async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        // Vérifier que l'utilisateur existe
+        const userToDelete = await storage.getUser(id);
+        if (!userToDelete) {
+            return res.status(404).json({ error: 'Utilisateur non trouvé' });
+        }
+        
+        // Empêcher la suppression de son propre compte
+        if (id === req.session.userId) {
+            return res.status(400).json({ error: 'Vous ne pouvez pas supprimer votre propre compte' });
+        }
+        
+        await storage.deleteUser(id);
+        res.json({ message: 'Utilisateur supprimé avec succès' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.put('/api/admin/users/:id/password', adminMiddleware, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { password } = req.body;
+        
+        if (!password) {
+            return res.status(400).json({ error: 'Mot de passe requis' });
+        }
+        
+        // Vérifier que l'utilisateur existe
+        const user = await storage.getUser(id);
+        if (!user) {
+            return res.status(404).json({ error: 'Utilisateur non trouvé' });
+        }
+        
+        await storage.updateUserPassword(id, password);
+        res.json({ message: 'Mot de passe modifié avec succès' });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

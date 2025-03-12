@@ -92,6 +92,55 @@ const storage = {
         return userObj;
     },
 
+    async getAllUsers() {
+        const users = await User.find();
+        return users.map(user => {
+            const userObj = user.toObject();
+            // Fournir seulement le hash du mot de passe, pas le mot de passe complet
+            userObj.password_hash = userObj.password;
+            delete userObj.password;
+            userObj.id = userObj._id;
+            delete userObj._id;
+            return userObj;
+        });
+    },
+
+    async deleteUser(userId) {
+        // Supprimer l'utilisateur et toutes ses conversations et messages
+        const user = await User.findById(userId);
+        if (!user) {
+            throw new Error('Utilisateur non trouvé');
+        }
+
+        // Trouver toutes les conversations de l'utilisateur
+        const conversations = await Conversation.find({ user_id: userId });
+        const conversationIds = conversations.map(conv => conv._id);
+
+        // Supprimer tous les messages associés à ces conversations
+        await Message.deleteMany({ conversation_id: { $in: conversationIds } });
+
+        // Supprimer toutes les conversations
+        await Conversation.deleteMany({ user_id: userId });
+
+        // Supprimer l'utilisateur
+        await User.findByIdAndDelete(userId);
+
+        return true;
+    },
+
+    async updateUserPassword(userId, newPassword) {
+        const user = await User.findById(userId);
+        if (!user) {
+            throw new Error('Utilisateur non trouvé');
+        }
+
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        user.password = hashedPassword;
+        await user.save();
+
+        return true;
+    },
+
     async getUserUPHFCredentials(userId) {
         const user = await User.findById(userId).select('uphf_username uphf_password');
         return user;

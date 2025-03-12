@@ -8,9 +8,10 @@ import {
   MenuList,
   MenuItem,
   useColorModeValue,
+  Button
 } from '@chakra-ui/react';
 import { HamburgerIcon } from '@chakra-ui/icons';
-import { FiUser } from 'react-icons/fi';
+import { FiUser, FiSettings } from 'react-icons/fi';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import ThemeSwitch from './ThemeSwitch';
@@ -59,6 +60,17 @@ const Navbar = ({ onOpen }) => {
 
         <Flex alignItems="center" gap={4}>
           <ThemeSwitch />
+          
+          {user && user.role === 'admin' && (
+            <Button
+              leftIcon={<FiSettings />}
+              colorScheme="purple"
+              size="sm"
+              onClick={() => navigate('/admin')}
+            >
+              Administration
+            </Button>
+          )}
           
           {user && (
             <Menu>
