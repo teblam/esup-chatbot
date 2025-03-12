@@ -594,11 +594,50 @@ const Chat = () => {
             mx="auto"
             px={4}
             position="relative"
+            sx={{
+              maskImage: 'linear-gradient(to right, transparent, black 120px, black calc(100% - 120px), transparent)',
+              WebkitMaskImage: 'linear-gradient(to right, transparent, black 120px, black calc(100% - 120px), transparent)'
+            }}
           >
             <Box 
               overflowX="auto"
               position="relative"
-              style={{ cursor: 'default' }}
+              onMouseDown={(e) => {
+                const ele = e.currentTarget;
+                const startX = e.pageX + ele.scrollLeft;
+                let isDragging = false;
+                
+                const onMouseMove = (e) => {
+                  isDragging = true;
+                  ele.scrollLeft = startX - e.pageX;
+                  e.preventDefault();
+                };
+                
+                const onMouseUp = () => {
+                  document.removeEventListener('mousemove', onMouseMove);
+                  document.removeEventListener('mouseup', onMouseUp);
+                  
+                  if (isDragging) {
+                    const preventClick = (e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      document.removeEventListener('click', preventClick, true);
+                    };
+                    document.addEventListener('click', preventClick, true);
+                  }
+                };
+                
+                document.addEventListener('mousemove', onMouseMove);
+                document.addEventListener('mouseup', onMouseUp);
+              }}
+              style={{ cursor: 'grab' }}
+              css={{
+                '&::-webkit-scrollbar': {
+                  display: 'none'
+                },
+                msOverflowStyle: 'none',
+                scrollbarWidth: 'none'
+              }}
             >
               <Flex 
                 gap={3} 
@@ -620,7 +659,9 @@ const Chat = () => {
                     color={suggestionTextColor}
                     _hover={{
                       bg: suggestionHoverBgColor,
+                      transform: 'translateY(-1px)',
                     }}
+                    transition="all 0.2s"
                     onClick={async () => {
                       if (isLoading || !activeConversation) return;
                       
