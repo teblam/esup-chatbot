@@ -222,6 +222,7 @@ const Chat = () => {
         // Utiliser une transition douce pour éviter les flashs
         requestAnimationFrame(() => {
           setMessages(data);
+          
           setIsLoading(false);
         });
       } else {
@@ -380,21 +381,16 @@ const Chat = () => {
         const finalMessages = [...withoutTemp, ...data.messages];
         setMessages(finalMessages);
         
-        // Défilement simple sans animation
-        if (messagesEndRef.current) {
-          messagesEndRef.current.scrollIntoView();
+        // Mise à jour de la conversation
+        if (data.conversation) {
+          setActiveConversation(data.conversation);
+          window.dispatchEvent(new CustomEvent('conversationUpdated', { 
+            detail: { 
+              id: data.conversation.id, 
+              title: data.conversation.title 
+            } 
+          }));
         }
-      }
-
-      // Mise à jour de la conversation
-      if (data.conversation) {
-        setActiveConversation(data.conversation);
-        window.dispatchEvent(new CustomEvent('conversationUpdated', { 
-          detail: { 
-            id: data.conversation.id, 
-            title: data.conversation.title 
-          } 
-        }));
       }
 
     } catch (error) {
@@ -423,16 +419,13 @@ const Chat = () => {
     const isUser = message.role === 'user';
     const isThinking = message.thinking;
     
-    // Extraire les valeurs de useColorModeValue en dehors de la condition
-    const thinkingBgColor = useColorModeValue('gray.100', 'gray.700');
-    
     // Animation spéciale pour le message de réflexion
     if (isThinking) {
       return (
         <Flex
           maxW={{ base: "90%", md: "70%" }}
           alignSelf="flex-start"
-          bg={thinkingBgColor}
+          bg={useColorModeValue('gray.100', 'gray.700')}
           p={3}
           borderRadius="lg"
           mb={3}
@@ -475,7 +468,7 @@ const Chat = () => {
       <Box
         maxW="80%"
         alignSelf={isUser ? 'flex-end' : 'flex-start'}
-        key={message.id} // Ajouter une clé stable pour éviter les re-rendus inutiles
+        key={message.id}
       >
         <Box
           bg={isUser ? userBgColor : botBgColor}
@@ -495,7 +488,8 @@ const Chat = () => {
   }, (prevProps, nextProps) => {
     // Optimisation pour éviter les re-rendus inutiles
     return prevProps.message.id === nextProps.message.id && 
-           prevProps.message.content === nextProps.message.content;
+           prevProps.message.content === nextProps.message.content &&
+           prevProps.message.thinking === nextProps.message.thinking;
   });
 
   // Page de chargement
@@ -583,10 +577,7 @@ const Chat = () => {
             size="lg"
             onClick={scrollToTop}
             opacity={0.9}
-            _hover={{ opacity: 1, transform: 'scale(1.1)' }}
-            _active={{ transform: 'scale(0.95)' }}
             aria-label="Remonter en haut"
-            transition="all 0.2s"
           />
         </Box>
       )}
@@ -603,50 +594,11 @@ const Chat = () => {
             mx="auto"
             px={4}
             position="relative"
-            sx={{
-              maskImage: 'linear-gradient(to right, transparent, black 120px, black calc(100% - 120px), transparent)',
-              WebkitMaskImage: 'linear-gradient(to right, transparent, black 120px, black calc(100% - 120px), transparent)'
-            }}
           >
             <Box 
               overflowX="auto"
               position="relative"
-              onMouseDown={(e) => {
-                const ele = e.currentTarget;
-                const startX = e.pageX + ele.scrollLeft;
-                let isDragging = false;
-                
-                const onMouseMove = (e) => {
-                  isDragging = true;
-                  ele.scrollLeft = startX - e.pageX;
-                  e.preventDefault();
-                };
-                
-                const onMouseUp = () => {
-                  document.removeEventListener('mousemove', onMouseMove);
-                  document.removeEventListener('mouseup', onMouseUp);
-                  
-                  if (isDragging) {
-                    const preventClick = (e) => {
-                      e.stopPropagation();
-                      e.preventDefault();
-                      document.removeEventListener('click', preventClick, true);
-                    };
-                    document.addEventListener('click', preventClick, true);
-                  }
-                };
-                
-                document.addEventListener('mousemove', onMouseMove);
-                document.addEventListener('mouseup', onMouseUp);
-              }}
-              style={{ cursor: 'grab' }}
-              css={{
-                '&::-webkit-scrollbar': {
-                  display: 'none'
-                },
-                msOverflowStyle: 'none',
-                scrollbarWidth: 'none'
-              }}
+              style={{ cursor: 'default' }}
             >
               <Flex 
                 gap={3} 
@@ -668,9 +620,7 @@ const Chat = () => {
                     color={suggestionTextColor}
                     _hover={{
                       bg: suggestionHoverBgColor,
-                      transform: 'translateY(-1px)',
                     }}
-                    transition="all 0.2s"
                     onClick={async () => {
                       if (isLoading || !activeConversation) return;
                       
