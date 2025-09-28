@@ -6,18 +6,18 @@ Un chatbot intelligent pour les étudiants et le personnel des établissements d
 
 <img width="1380" height="867" alt="Image_PNG" src="https://github.com/user-attachments/assets/4949a06f-573f-45d5-88cd-c93f81304b7f" />
 
-<img width="1284" height="227" alt="Image_PNG2" src="https://github.com/user-attachments/assets/991cc6fd-0283-443f-8843-4349974c764b" />
-
-
 ## Fonctionnalités
 
 - **Interface moderne et responsive** avec thème clair/sombre
 - **Historique des conversations** sauvegardé automatiquement
 - **Suggestions prédéfinies** pour démarrer rapidement une conversation
 - **Authentification sécurisée** des utilisateurs
-- **Gestion des rôles** et interface d'administration
 - **Support du Markdown et des images** pour une mise en forme riche des réponses
 - **Animations fluides** pour une meilleure expérience utilisateur
+- **Gestion des rôles** et interface d'administration
+
+<img width="1284" height="227" alt="Image_PNG2" src="https://github.com/user-attachments/assets/991cc6fd-0283-443f-8843-4349974c764b" />
+
 
 ## Technologies
 
